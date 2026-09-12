@@ -10,11 +10,10 @@
 // cable does not answer on. Report ID 0x01 sits in byte 0 of the buffer in both
 // directions, exactly as on Windows, so the frame layout in dsp.rs is untouched.
 
-use std::cell::RefCell;
-
 use hidapi::{HidApi, HidDevice};
 
 use crate::dsp::{Transport, FRAME_LEN, MOONDROP_VID, REPORT_ID};
+use crate::hid_api::with_api;
 
 // Windows sizes the read buffer from HIDP_CAPS.InputReportByteLength; hidapi's DeviceInfo
 // carries no equivalent, but the descriptor pins it anyway — report ID 1 is 61 bytes in
@@ -72,51 +71,10 @@ fn permission_hint() -> &'static str {
      A udev rule granting access to VID 35d8 is needed."
 }
 
-// The hidapi context, kept for the life of the HID thread.
-//
-// HidApi::new() enumerates the whole HID bus, and on macOS that means
-// IOHIDManagerSetDeviceMatching on hidapi's process-global manager, which reschedules every
-// matched device onto the manager's run loop. Those IOHIDDeviceRefs are cached by IOKit per
-// service, so they're the same objects hid_close() has just rescheduled onto the main run
-// loop — enumerating on every operation runs that collision over and over, and it is where
-// the cable crashed the app on macOS 27 (a pointer-authentication trap on a CFRunLoop inside
-// CFRunLoopAddSource).
-//
-// Nothing here needs a fresh list that often. Device paths stay valid while the cable stays
-// plugged in, so hold the context and re-enumerate only when opening from the list we have
-// fails — which is exactly the case where the cable has been unplugged or re-plugged and the
-// paths really have changed.
-thread_local! {
-    static API: RefCell<Option<HidApi>> = const { RefCell::new(None) };
-}
-
+// The hidapi context this uses lives in hid_api, shared with the gen-2 transport — see the
+// note there on why it is held for the life of the HID thread rather than rebuilt per op.
 pub fn open_best(pref_pid: Option<u16>) -> Result<Dev, String> {
-    API.with(|cell| {
-        let mut slot = cell.borrow_mut();
-
-        // A context we've just built carries a fresh list; there's nothing to refresh yet.
-        let fresh = slot.is_none();
-        if fresh {
-            let api = HidApi::new().map_err(|e| e.to_string())?;
-
-            // Don't seize the device: the cable's inline controls stay working while we're
-            // open, and we only ever touch the vendor reports.
-            #[cfg(target_os = "macos")]
-            api.set_open_exclusive(false);
-
-            *slot = Some(api);
-        }
-        let api = slot.as_mut().expect("context was just placed");
-
-        match open_from_list(api, pref_pid) {
-            Ok(dev) => Ok(dev),
-            Err(e) if fresh => Err(e),
-            Err(_) => {
-                api.refresh_devices().map_err(|e| e.to_string())?;
-                open_from_list(api, pref_pid)
-            }
-        }
-    })
+    with_api(|api| open_from_list(api, pref_pid))
 }
 
 fn open_from_list(api: &HidApi, pref_pid: Option<u16>) -> Result<Dev, String> {

@@ -1,5 +1,8 @@
 mod dsp;
+mod dsp2;
 mod hid;
+mod hid_api;
+mod hid_gen2;
 
 #[cfg(windows)]
 mod hid_win;
@@ -73,8 +76,21 @@ where
 }
 
 #[tauri::command]
-async fn open() -> Result<hid::CableInfo, String> {
-    blk(hid::open).await?
+async fn open(vid: Option<u16>, pid: Option<u16>) -> Result<hid::CableInfo, String> {
+    let want = vid.zip(pid);
+    blk(move || hid::open(want)).await?
+}
+
+/// Every cable currently attached. The UI uses this to offer a choice when more than one is
+/// plugged in, rather than silently taking whichever enumerated first.
+#[tauri::command]
+async fn list_devices() -> Result<Vec<hid::Listed>, String> {
+    blk(hid::list).await?
+}
+
+#[tauri::command]
+async fn read_preamp() -> Result<Option<f64>, String> {
+    blk(hid::read_preamp).await?
 }
 
 #[tauri::command]
@@ -118,6 +134,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             open,
+            list_devices,
+            read_preamp,
             close,
             read_mode,
             read_bank,

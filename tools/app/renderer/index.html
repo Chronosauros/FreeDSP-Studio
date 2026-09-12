@@ -115,6 +115,13 @@
     padding:28px 32px; text-align:center; max-width:460px; }
   .connectCard .ct-title { font-size:18px; font-weight:600; color:var(--ink); }
   .connectCard .ct-sub { color:var(--muted); font-size:13px; margin:8px 0 20px; }
+  /* Shown only when more than one cable is attached. */
+  .devicelist { display:flex; flex-direction:column; gap:8px; margin:0 0 18px; text-align:left; }
+  .devicebtn { display:flex; justify-content:space-between; align-items:center; gap:14px;
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:11px 14px; font:inherit; color:var(--ink); cursor:pointer; }
+  .devicebtn:hover { border-color:var(--accent); }
+  .devicebtn .muted { font-size:11px; }
 
   /* workspace */
   .workspace { flex:1; min-height:0; display:grid; grid-template-columns:1fr 312px; gap:16px; padding:16px 20px; }
@@ -288,6 +295,7 @@
       <div class="connectCard">
         <div class="ct-title" id="connectTitle">Looking for a cable…</div>
         <div class="ct-sub">Plug in your DSP cable, then click Detect. Nothing is changed until you Write.</div>
+        <div id="deviceList" class="devicelist hidden"></div>
         <button id="connectBtn" class="writebtn" style="padding:12px 20px; font-size:15px">Detect cable</button>
       </div>
     </div>
@@ -309,7 +317,7 @@
 
         <div class="bandcard card">
           <div class="bandhead">
-            <span class="seclabel">Custom EQ · 9 bands</span>
+            <span class="seclabel" id="bandCountLabel">Custom EQ · 9 bands</span>
             <div class="bandhead-right">
             <div class="fr-inline">
               <div class="rigtoggle sm" id="rigToggleInline"><button data-rig="5128" class="on">5128</button><button data-rig="711">711</button><button data-rig="other">other</button></div>
@@ -419,7 +427,7 @@
     <div class="fitcfg">
       <div class="fitcfg-row"><label>Low bound</label><input type="number" id="fitLow" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
       <div class="fitcfg-row"><label>High bound</label><input type="number" id="fitHigh" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row"><label>Bands to fit</label><input type="number" id="fitBands" min="1" max="9" step="1"><span class="muted">of 9</span></div>
+      <div class="fitcfg-row"><label>Bands to fit</label><input type="number" id="fitBands" min="1" max="9" step="1"><span class="muted" id="fitBandsOf">of 9</span></div>
     </div>
     <div class="row" style="justify-content:space-between">
       <button class="btn" id="fitCfgReset">Reset</button>
@@ -509,7 +517,9 @@
   var wrap = function(p){ return p.then(function(data){ return {ok:true, data:data}; })
                            .catch(function(err){ return {ok:false, error:String(err)}; }); };
   window.dsp = {
-    open:      function(){ return wrap(invoke('open')); },
+    open:      function(sel){ return wrap(invoke('open', sel || {})); },
+    list:      function(){ return wrap(invoke('list_devices')); },
+    readPreamp:function(){ return wrap(invoke('read_preamp')); },
     close:     function(){ return wrap(invoke('close')); },
     readMode:  function(){ return wrap(invoke('read_mode')); },
     readBank:  function(){ return wrap(invoke('read_bank')); },
@@ -545,10 +555,25 @@ const $ = (id) => document.getElementById(id);
 const log = (m) => { const el=$('log'); if(el){ el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; } };
 const show = (id,on) => $(id).classList.toggle('hidden', !on);
 const clamp = (v,lo,hi) => Math.min(hi, Math.max(lo, v));
-const NB = 9;
+// Band count, limits and filter types all come from the cable — gen-1 has 9 bands and its
+// own gain ceiling, the gen-2 cables have 8 and differ from each other. These hold the gen-1
+// values until a cable is opened, so the UI is sane before anything is connected.
+let NB = 9;
+let GEN = 1;
 
-const LIM = { fMin:20, fMax:20000, gMin:-12, gMax:3, qMin:0.2, qMax:10 }; // gMax = default cap; +6 dB mode raises it
-const DEFAULT_FREQS = [31,62,125,250,500,1000,2000,4000,8000];
+let LIM = { fMin:20, fMax:20000, gMin:-12, gMax:3, qMin:0.2, qMax:10 }; // gMax = default cap; on gen-1 the +6 dB mode raises it
+// Placeholder frequencies for blank bands. Nine bands land on octaves; any other count is
+// spread logarithmically over the same span.
+const OCTAVES_9 = [31,62,125,250,500,1000,2000,4000,8000];
+function defaultFreqs(){
+  if(NB===9) return OCTAVES_9;
+  const lo=31, hi=8000;
+  return Array.from({length:NB}, (_,i)=>{
+    const f = lo*Math.pow(hi/lo, NB<2?0:i/(NB-1));
+    return Math.round(f/(f<100?1:f<1000?5:50))*(f<100?1:f<1000?5:50);
+  });
+}
+function defaultFreq(i){ const d=defaultFreqs(); return d[i] ?? d[d.length-1]; }
 // Built-in starting points, surfaced as read-only entries in "Saved EQs" so FreeDSP (no firmware
 // presets) can still load the DUSK voicings. Kept independent of Moondrop's own data.
 const STARTING = {
@@ -560,8 +585,8 @@ const STARTING = {
 };
 const SQUIG_TYPE = { PK:'PK', PEQ:'PK', LSC:'LSQ', LS:'LSQ', LSQ:'LSQ', HSC:'HSQ', HS:'HSQ', HSQ:'HSQ' };
 const RTYPE = { PK:'PK', LSQ:'LSC', HSQ:'HSC' };
-const TYPE_LABEL = { PK:'PK', LSQ:'LSC', HSQ:'HSC' };
-const TYPE_CYCLE = ['PK','LSQ','HSQ'];
+const TYPE_LABEL = { PK:'PK', LSQ:'LSC', HSQ:'HSC', LP:'LPF', HP:'HPF' };
+let TYPE_CYCLE = ['PK','LSQ','HSQ'];
 
 // ---- state ----
 let model = [];
@@ -607,13 +632,45 @@ function peak(){ let p=-Infinity,pf=0; for(let i=0;i<=240;i++){ const f=20*Math.
 
 // ---- model helpers ----
 function blankBand(f){ return { freq:f, gain:0, q:1.0, type:'PK' }; }
-function blankModel(){ return DEFAULT_FREQS.map(f=>blankBand(f)); }
-function fill9(list){
+function blankModel(){ return defaultFreqs().map(f=>blankBand(f)); }
+function fillBands(list){
   const out = list.slice(0,NB).map(b=>({ freq:b.freq, gain:b.gain, q:b.q, type:b.type||'PK' }));
-  for(let i=out.length;i<NB;i++) out.push(blankBand(DEFAULT_FREQS[i]));
+  for(let i=out.length;i<NB;i++) out.push(blankBand(defaultFreq(i)));
   return out;
 }
-function ensureCeilFor(maxGain){ if(maxGain>LIM.gMax){ hiGain=true; gCeil=clamp(Math.max(gCeil,Math.ceil(maxGain)),3,12); } }
+// Gen-1 cables accept more gain than the app offers by default, which is what "+6 dB mode"
+// unlocks. Gen-2 cables publish a real ceiling, so there is nothing to raise.
+function ensureCeilFor(maxGain){ if(GEN===1 && maxGain>LIM.gMax){ hiGain=true; gCeil=clamp(Math.max(gCeil,Math.ceil(maxGain)),3,12); } }
+function curGainStep(){ return GEN===2 ? 0.1 : 1; }
+function roundGain(v){ return GEN===2 ? Math.round(v*10)/10 : Math.round(v); }
+
+// Reshapes the UI around whatever cable just opened.
+function applyCableCaps(info){
+  GEN = info.gen || 1;
+  NB = info.bands || 9;
+  TYPE_CYCLE = (info.types && info.types.length) ? info.types.slice() : ['PK','LSQ','HSQ'];
+  LIM = { fMin:20, fMax:20000,
+          gMin: info.gainMin ?? -12, gMax: info.gainMax ?? 3,
+          qMin: info.qMin ?? 0.2, qMax: info.qMax ?? 10 };
+  if(GEN!==1){ hiGain=false; }
+  fitCfg.bands = clamp(fitCfg.bands||NB, 1, NB);
+  // Drop any band the new cable doesn't have, and any filter type it can't run.
+  model = fillBands(model.map(b=>({...b, type: TYPE_CYCLE.includes(b.type) ? b.type : 'PK'})));
+  syncCapUI();
+}
+function resetCableCaps(){
+  GEN=1; NB=9; TYPE_CYCLE=['PK','LSQ','HSQ'];
+  LIM={ fMin:20, fMax:20000, gMin:-12, gMax:3, qMin:0.2, qMax:10 };
+  syncCapUI();
+}
+// Labels and controls that only make sense for one generation.
+function syncCapUI(){
+  const lbl=$('bandCountLabel'); if(lbl) lbl.textContent=`Custom EQ · ${NB} bands`;
+  const af=$('autoFitBtn'); if(af) af.title=`Auto-fit the ${NB} bands to your target`;
+  const fb=$('fitBands'); if(fb){ fb.max=NB; if(+fb.value>NB) fb.value=NB; }
+  const fo=$('fitBandsOf'); if(fo) fo.textContent=`of ${NB}`;
+  show('hiGainBtn', GEN===1);
+}
 
 // ---- coordinate mapping (shared by canvas + nodes) ----
 const DB_MIN=-15, DB_MAX=12, DB_SPAN=DB_MAX-DB_MIN;
@@ -882,7 +939,7 @@ function autoFit(){
   }
   bands.sort((a,b)=>a.freq-b.freq);
   pushUndo();
-  model=fill9(bands);
+  model=fillBands(bands);
   const {p}=peak(); preamp = p>0 ? -(Math.ceil(p*10)/10) : 0;   // headroom
   renderAll();
   return true;
@@ -974,7 +1031,7 @@ function renderBands(){
           `<input type="range" min="${LIM.qMin}" max="${LIM.qMax}" step="0.1" data-k="q">`+
         `</div>`+
       `</div>`;
-    row.querySelector('.rt').onclick = ()=>{ pushUndo(); b.type=TYPE_CYCLE[(TYPE_CYCLE.indexOf(b.type)+1)%3]; renderAll(); };
+    row.querySelector('.rt').onclick = ()=>{ pushUndo(); b.type=TYPE_CYCLE[(TYPE_CYCLE.indexOf(b.type)+1)%TYPE_CYCLE.length]; renderAll(); };
     row.querySelectorAll('input[type=range]').forEach(inp=>{
       inp.onpointerdown = pushUndo;
       inp.oninput = ()=>{ const k=inp.dataset.k;
@@ -1039,7 +1096,7 @@ function applyEqText(){
     return {freq,gain:Math.round(gain*10)/10,q,type:type||'PK'};
   });
   pushUndo();
-  model = fill9(clamped);
+  model = fillBands(clamped);
   preamp = Math.round(clamp(filePreamp,-20,0)*10)/10;
   const flat = NB - clamped.length;
   let msg = `Applied ${clamped.length} filter(s)${flat?`, ${flat} slot(s) flat`:''}. Preamp ${preamp.toFixed(1)} dB.`;
@@ -1073,7 +1130,7 @@ function saveCurrent(){
 function applyEq(bnds, pre, label){
   const mdl=bnds.map(b=>({freq:b.freq,gain:b.gain,q:b.q,type:b.type||'PK'}));
   pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain)));
-  model=fill9(mdl); preamp=Math.round(clamp(pre||0,-20,0)*10)/10; renderAll(); log('loaded '+label);
+  model=fillBands(mdl); preamp=Math.round(clamp(pre||0,-20,0)*10)/10; renderAll(); log('loaded '+label);
 }
 function nBands(bnds){ return bnds.filter(b=>b.gain!==0).length; }
 function renderSaved(){
@@ -1103,10 +1160,15 @@ function renderSaved(){
 // ---- device I/O ----
 async function call(promise,label){ const r=await promise; if(!r||!r.ok){ log(`${label} failed: ${r?r.error:'no response'}`); throw new Error(r?r.error:'x'); } return r.data; }
 function renderCable(info){
+  applyCableCaps(info);
   $('devName').textContent=info.name;
-  $('statusText').textContent=`connected · ${info.vid.toString(16)}:${info.pid.toString(16)}`;
+  const id=`${info.vid.toString(16)}:${info.pid.toString(16)}`;
+  $('statusText').textContent = info.firmware
+    ? `connected · ${id} · fw ${info.firmware}`
+    : `connected · ${id}`;
   show('statusPill',true); show('disconnectBtn',true);
-  // Active-profile switching only applies to cables with firmware presets (DUSK, MAY).
+  // Active-profile switching only applies to cables that have firmware voicings to switch
+  // between — DUSK and MAY on gen-1, the FreeDSP Mini on gen-2.
   show('profCard', info.hasPresets===true);
 }
 function renderPresets(active){
@@ -1122,17 +1184,17 @@ function renderPresets(active){
 async function refreshMode(){ try{ const a=await call(window.dsp.readMode(),'readMode'); renderPresets(a); }catch(e){} }
 async function readFromCable(){
   try{ const bands=await call(window.dsp.readBank(),'readBank');
-    const mdl=bands.map((b,i)=> (b&&b.ok) ? {freq:b.freq,gain:Math.round(b.gain),q:b.q,type:b.type==='?'?'PK':b.type} : blankBand(DEFAULT_FREQS[i]));
-    pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain))); model=fill9(mdl);
+    const mdl=bands.map((b,i)=> (b&&b.ok) ? {freq:b.freq,gain:roundGain(b.gain),q:b.q,type:TYPE_CYCLE.includes(b.type)?b.type:'PK'} : blankBand(defaultFreq(i)));
+    pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain))); model=fillBands(mdl);
     log(`read ${bands.filter(b=>b&&b.ok).length} bands`); renderAll();
-  }catch(e){}
+  }catch(e){ log('read failed: '+(e&&e.message||e)); showWriteNote('Could not read the EQ from the cable, see the log.'); }
 }
 // Surface a "wrong / missing cable" block from the dsp-core guard.
 function showWriteNote(msg){ const n=$('writeNote'); n.textContent=msg; show('writeNote',true); $('statusPill').classList.add('warn'); }
 function clearWriteNote(){ show('writeNote',false); $('statusPill').classList.remove('warn'); }
-function isCableIssue(m){ return /Wrong cable|no Moondrop cable/i.test(m); }
+function isCableIssue(m){ return /Wrong cable|no Moondrop cable|no longer connected|no cable at|does not speak/i.test(m); }
 function reportCableIssue(m){
-  const msg = /no Moondrop cable/i.test(m)
+  const msg = /no Moondrop cable|no longer connected|no cable at/i.test(m)
     ? 'No cable detected, nothing was written. Reconnect to continue.'
     : m.replace(/\s*$/,'') + ' Reconnect to continue.';
   showWriteNote(msg); log('BLOCKED: '+msg);
@@ -1164,7 +1226,19 @@ async function doWrite(){
   const out = model.map(b=>({freq:b.freq,gain:b.gain,q:b.q,type:b.type}));
   const btn=$('writeBtn'); btn.disabled=true; btn.textContent='Writing…';
   try{ const r=await call(window.dsp.writeBank(out, preamp),'writeBank');
-    log(`wrote ${r.acked}/54 frames; active=${r.active}`); await refreshMode();
+    // Gen-2 verifies by reading the bank back, so `acked` counts bands the cable is actually
+    // holding. Gen-1 can only count frames it believes were acknowledged.
+    if(GEN===2){
+      log(`wrote ${r.acked}/${NB} bands, verified by read-back; slot=${r.active}`);
+      if(r.acked < NB){
+        showWriteNote(`Only ${r.acked} of ${NB} bands read back as written. The EQ on the cable may not match what you see.`);
+        btn.textContent='Partly written'; setTimeout(()=>{btn.textContent='Write to cable';},1800);
+        await refreshMode(); return;
+      }
+    } else {
+      log(`wrote ${r.acked}/54 frames; active=${r.active}`);
+    }
+    await refreshMode();
     btn.textContent='Written ✓'; setTimeout(()=>{btn.textContent='Write to cable';},1400);
   }catch(e){ const m=String(e.message||e);
     if(isCableIssue(m)){ reportCableIssue(m); btn.textContent='Blocked'; }
@@ -1173,15 +1247,38 @@ async function doWrite(){
   }
   finally { btn.disabled=false; }
 }
+// Two cables can be plugged in at once (they often are, when comparing), and the app drives
+// one at a time — so offer the choice rather than silently taking whichever enumerated first.
 async function detect(){
-  try{ const info=await call(window.dsp.open(),'open');
+  try{
+    const found = await call(window.dsp.list(),'list');
+    show('deviceList', false);
+    if(!found || !found.length){ $('connectTitle').textContent='No cable found, plug one in and click Detect'; return; }
+    if(found.length===1){ await openCable(found[0]); return; }
+    $('connectTitle').textContent='More than one cable found, pick one';
+    const box=$('deviceList'); box.innerHTML='';
+    found.forEach(d=>{
+      const b=document.createElement('button');
+      b.className='devicebtn';
+      b.innerHTML=`<span>${d.name}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · gen ${d.gen}</span>`;
+      b.onclick=()=>openCable(d);
+      box.appendChild(b);
+    });
+    show('deviceList', true);
+  }catch(e){ $('connectTitle').textContent='Error looking for cables, see log'; }
+}
+async function openCable(d){
+  try{ const info=await call(window.dsp.open(d?{vid:d.vid,pid:d.pid}:null),'open');
     if(!info){ $('connectTitle').textContent='No cable found, plug one in and click Detect'; return; }
-    cable=info; renderCable(info); clearWriteNote(); show('connect',false); show('workspace',true);
+    cable=info; renderCable(info); clearWriteNote();
+    show('connect',false); show('deviceList',false); show('workspace',true);
+    log(`${info.name} · gen ${info.gen} · ${info.bands} bands · gain ${info.gainMin}..${info.gainMax} dB`);
     await refreshMode(); await readFromCable(); requestAnimationFrame(drawGraph);
   }catch(e){ $('connectTitle').textContent='Error opening cable, see log'; }
 }
 async function disconnect(){ try{ await window.dsp.close(); }catch(e){}
-  cable=null; clearWriteNote(); show('workspace',false); show('statusPill',false); show('disconnectBtn',false);
+  cable=null; resetCableCaps(); clearWriteNote();
+  show('workspace',false); show('statusPill',false); show('disconnectBtn',false); show('deviceList',false);
   $('devName').textContent='FreeDSP Studio'; show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
 
 // ---- modals ----
@@ -1192,7 +1289,14 @@ function flashLink(el,txt){ const o=el.textContent; el.textContent=txt; setTimeo
 // ---- theme ----
 function setTheme(t){ document.documentElement.dataset.theme=t; try{ localStorage.setItem('dsp-theme',t); }catch(e){} requestAnimationFrame(drawGraph); }
 
+window.addEventListener('error', (e)=>{
+  try{ log('error: '+(e.message||e)+' @'+(e.lineno||'?')); showWriteNote('Something went wrong in the UI, see the log.'); }catch(_){}
+});
+window.addEventListener('unhandledrejection', (e)=>{
+  try{ log('unhandled: '+((e.reason&&e.reason.message)||e.reason)); }catch(_){}
+});
 window.addEventListener('DOMContentLoaded', ()=>{
+  resetCableCaps();
   model = blankModel();
   // title strip
   // Windows drags the title bar via -webkit-app-region, which WebView2 honours and
@@ -1221,7 +1325,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('saveBtn').onclick=saveCurrent; $('saveName').onkeydown=(e)=>{ if(e.key==='Enter') saveCurrent(); };
   // write + utility links
   $('writeBtn').onclick=writeToCable;
-  $('linkRead').onclick=async ()=>{ await readFromCable(); flashLink($('linkRead'),'read ✓'); show('readNote',true); };
+  $('linkRead').onclick=async ()=>{ await readFromCable(); flashLink($('linkRead'),'read ✓'); show('readNote',GEN===1); };
   $('readNoteX').onclick=()=>show('readNote',false);
   $('linkBackup').onclick=()=>{ openModal('modalBackup'); $('backupMsg').textContent=''; };
   $('eqTextBtn').onclick=openEqText;

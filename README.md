@@ -1,10 +1,10 @@
 # FreeDSP Studio
 
-An EQ editor for Moondrop's DSP USB-C cables (DUSK-SP, MAY and FreeDSP). It reads whatever EQ is on the cable, lets you edit the 9 parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
+An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, and Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
 
 I made this because the stock app is clunky, locked to whole-dB steps, and it turns out the cable can do WAY more than the app lets on.
 
-> Independent project. Nothing to do with Moondrop, not affiliated, not endorsed. For cables you own.
+> Independent project. Nothing to do with Moondrop, CrinEar or any other manufacturer here — not affiliated, not endorsed. For cables you own.
 
 ![FreeDSP Studio — frequency-response view with the EQ auto-fitted to a target](assets/screenshot.png)
 
@@ -31,21 +31,34 @@ Either way you only do it once. Or run from source (below), which avoids the who
 
 ## Supported cables
 
+There are two generations of cable, speaking two unrelated protocols. The app detects which by asking, so a cable not listed here will still work if it answers the gen-2 handshake.
+
+**Gen 1** — HID report `0x01` over the control pipe, 9 bands:
+
 | Cable | USB ID (VID:PID) | Firmware presets |
 |---|---|---|
 | Moondrop DUSK-SP | `35D8:1499` | Crinacle tunings |
 | Moondrop MAY | `35D8:1497` | Standard / Bass Head / Reference / No Bass / Harman |
 | Moondrop FreeDSP | `35D8:1496` | none (custom bank only) |
 
-Windows and macOS. The HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. It needs a udev rule granting access to VID `35d8`, and someone with a cable to test it.
+**Gen 2** — HID report `0x4B` over the interrupt endpoints, 8 bands, with a real preamp register:
+
+| Cable | USB ID (VID:PID) | Bands | Gain | Filter types | Firmware presets |
+|---|---|---|---|---|---|
+| Moondrop FreeDSP Mini | `35D8:98D4` | 8 | ±12 dB | PK / LS / HS | Default, Bass Enhance ×2, Space, Treble Enhance |
+| CrinEar Protocol Micro | `3302:C20F` | 8 | ±10 dB | PK / LS / LPF / HPF | none (custom bank only) |
+
+Plug in more than one and the app asks which to drive.
+
+Windows and macOS. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs a udev rule granting access to VID `35d8` and `3302`, and someone with a cable to test it.
 
 ## What it does
 
 - Detects the cable and pulls in whatever EQ is loaded on it
-- 9-band parametric EQ (peak / low shelf / high shelf).... drag the numbered nodes straight on the graph, or use the sliders
+- Parametric EQ — 9 bands on gen-1 cables, 8 on gen-2 — with the filter types and gain range each cable actually supports.... drag the numbered nodes straight on the graph, or use the sliders
 - Proper fractional-dB gain, not the whole numbers the stock app limits you to (see below)
 - A real preamp, with an auto headroom button and a clip check before every write
-- Switches the active firmware profile on the DUSK and MAY
+- Switches the active firmware profile on the DUSK, MAY and FreeDSP Mini
 - squig.link / AutoEQ import and export (Equalizer APO parametric text)
 - Frequency-response view: load your IEM's measurement and a target, see the EQ'd result
 - Auto-fit the EQ to a target (based on AutoEq), with a configurable range and band count
@@ -62,7 +75,13 @@ I reverse engineered the cable's HID protocol to build this, and a few genuinely
 
 **The preamp is the bit I'm most chuffed with.** The cable has no preamp register at all. But scaling one band's biquad numerator by `k = 10^(preamp/20)` shifts that filter's response by a flat amount at every frequency, and because the 9 bands are cascaded, the WHOLE combined curve moves down with its shape intact. A mathematically exact preamp riding on a filter that's already there, costing nothing. It sits on the last active band so the rest of the chain runs hot (better signal-to-noise, thanks to oratory1990 for the nudge).
 
-Nerdy footnote: the cable stores a separate coefficient set per sample rate (44.1 / 48 / 96 / 192 / 384 kHz), fixed-point scaled by 2^22. Silicon is a Conexant CX2077x-class DSP; control is HID over USB.
+Nerdy footnote: a gen-1 cable stores a separate coefficient set per sample rate (44.1 / 48 / 96 / 192 / 384 kHz), fixed-point scaled by 2^22. Silicon is a Conexant CX2077x-class DSP; control is HID over USB.
+
+**Gen 2 is a different animal.** Report `0x4B`, framed as `[OP, CMD, LEN, payload]`, and — unlike gen 1 — replies come back on the interrupt endpoint rather than the control pipe. That difference is why these cables can be driven from a browser where gen-1 ones cannot: WebHID can send an output report and listen for input reports, but cannot issue a control-pipe `GET_REPORT`, which is exactly what gen 1 needs and exactly why this app exists.
+
+Each band carries both the coefficients it runs (one set at 96 kHz, fixed-point scaled by 2^30) and a freq/Q/gain/type record for read-back, written together in a single 33-byte payload. There is a genuine preamp register here, so none of the numerator trickery above is needed. Writes are latched with a coefficient-commit command and then persisted to flash, so they survive unplugging.
+
+One wrinkle worth recording: replies are tagged only with the command they answer, and several different questions share command `0x09` — reading a band and reading the active EQ slot both use it. Leave a stale reply in the queue and the next request happily consumes it, after which every answer is off by one. Draining before each send, and checking the band index the cable echoes back, is what keeps that honest.
 
 ## Run from source
 
@@ -100,13 +119,24 @@ Nothing is written until you click Write, writes are reversible, and the clip ch
 
 ## Reverse engineering
 
-This is a clean, independent implementation of the wire protocol, written for interoperability with my own hardware. There is no Moondrop code, firmware or assets in here.
+This is a clean, independent implementation of the wire protocols, written for interoperability with hardware I own. There is no manufacturer code, firmware or assets in here.
 
 ## Support
 
 If this saved you from the stock app, you can [buy me a coffee](https://buymeacoffee.com/effectiveequivalent). No pressure.
 
 ## Changelog
+
+### 0.3.0
+- Support for a second generation of cable, on a different wire protocol: HID report `0x4B` over the interrupt endpoints, 8 bands, and a real preamp register instead of the coefficient trick gen-1 needs
+- **Moondrop FreeDSP Mini** (`35D8:98D4`) — 8 bands, ±12 dB, peak / low shelf / high shelf, plus its five firmware voicings
+- **CrinEar Protocol Micro** (`3302:C20F`) — 8 bands, ±10 dB, peak / low shelf / low pass / high pass
+- Other cables on the same chipset family should work without being listed: the generation is settled by asking the cable, not by matching a product id
+- Band count, gain range and filter types now follow whatever cable is connected, rather than assuming gen-1's fixed 9 bands
+- Plug in more than one cable and the app asks which to drive
+- Gen-2 writes are verified by reading the bank back, so the write count means bands the cable is actually holding — a write that doesn't land now says so instead of reporting success
+- Read-back on gen-2 is full resolution, so the whole-dB rounding note doesn't apply to those cables
+- Fix: a read could quietly return another request's answer. Replies carry only the command they answer, and reading a band and reading the active EQ slot share one — a stale reply left in the queue would satisfy the next request and shift every answer after it. The queue is now drained before each request and the echoed band index checked
 
 ### 0.2.6
 - Fix: crash on macOS while talking to the cable. Every device operation ran on a fresh short-lived thread and re-enumerated the whole HID bus, which drives hidapi's process-global `IOHIDManager` far harder than it is designed for — device operations now run on one long-lived thread, and the bus is only re-enumerated when opening the cable actually fails
@@ -128,11 +158,11 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 - Edit the EQ as squig / AutoEQ text
 
 ### 0.1.0
-- Read, edit and write the cable's 9-band parametric EQ
+- Read, edit and write the cable's parametric EQ (9 bands on gen-1, 8 on gen-2)
 - Live response graph with draggable band nodes
 - Fractional-dB gain and a coefficient-based preamp with clip check
 - squig.link / AutoEQ import and export
-- Firmware profile switching (DUSK / MAY), save and recall EQs
+- Firmware profile switching (DUSK / MAY / FreeDSP Mini), save and recall EQs
 
 ## Credits
 

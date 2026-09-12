@@ -37,6 +37,36 @@ pub struct CableInfo {
     pub pid: u32,
     pub has_presets: Option<bool>,
     pub presets: BTreeMap<u8, String>,
+    /// Wire protocol generation: 1 for the report-0x01 cables in this file, 2 for the
+    /// report-0x4B ones in dsp2. The two share nothing but the biquad maths, and the UI has
+    /// to know which it is talking to.
+    pub gen: u8,
+    /// Bands the cable actually has — 9 on gen-1, 8 on the gen-2 cables so far.
+    pub bands: usize,
+    pub gain_min: f64,
+    pub gain_max: f64,
+    pub q_min: f64,
+    pub q_max: f64,
+    /// Filter types this cable accepts, in the order the UI cycles them.
+    pub types: Vec<String>,
+    /// How the preamp is applied: "baked" folds it into the last active band's numerator
+    /// (gen-1 has no register for it), "pre" and "global" are real gen-2 registers, "none"
+    /// means the cable has no preamp at all.
+    pub preamp: String,
+    pub firmware: Option<String>,
+}
+
+/// The gen-1 cables, described in the same terms as a gen-2 profile so the UI has one shape
+/// to read. The gain ceiling is the conservative one; the app's "+6 dB mode" raises it.
+pub fn gen1_limits() -> (usize, f64, f64, f64, f64, Vec<String>) {
+    (
+        9,
+        -12.0,
+        3.0,
+        0.2,
+        10.0,
+        vec!["PK".into(), "LSQ".into(), "HSQ".into()],
+    )
 }
 
 #[derive(Serialize)]
