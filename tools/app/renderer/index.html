@@ -421,7 +421,7 @@
 
   <div class="modal hidden" id="modalFitCfg">
     <div class="mhead">
-      <div><div class="mtitle">Auto-fit settings</div><div class="msub">Limit the fit to a frequency range and a number of bands. Bands beyond the limit are left flat for you to use by hand — handy when a rig measures poorly up top (e.g. 711 above ~6 kHz).</div></div>
+      <div><div class="mtitle">Auto-fit settings</div><div class="msub">Limit the fit to a frequency range and a number of bands. Outside the range the EQ is kept flat, and bands beyond the limit (or ones the fit doesn't need) are left flat for you to use by hand — handy when a rig measures poorly up top (e.g. 711 above ~6 kHz).</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
     <div class="fitcfg">
@@ -458,7 +458,7 @@
 
   <div class="modal hidden" id="modalAbout">
     <div class="mhead">
-      <div><div class="mtitle">FreeDSP Studio</div><div class="msub">v0.2.0 · open-source EQ editor for Moondrop DSP cables</div></div>
+      <div><div class="mtitle">FreeDSP Studio</div><div class="msub">v0.4.0 · open-source EQ editor for Moondrop DSP cables</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
     <div style="font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted)">
@@ -876,7 +876,14 @@ function setGraphMode(m){
 // Ports AutoEq's approach (Jaakko Pasanen, MIT): matching-pursuit init + MSE loss with a
 // sharpness penalty and "only average energy above 10 kHz", adapted to our fixed 9 bands and
 // gain limits (SLSQP -> per-parameter golden-section coordinate descent, all in JS).
+// Golden-section assumes one minimum, so each band's frequency is only searched within an octave
+// of where it sits (a global search teleports bands and leaves them cancelling each other).
+// Like squig.link's Auto EQ, bands the fit doesn't need are dropped (left flat), and outside the
+// configured range the EQ is pushed towards flat rather than fitted to an untrusted measurement.
 const FIT_N = 180;
+const SPILL_W = 0.1;                    // weight of the "stay flat outside the fit range" term
+const PRUNE_DB = 0.15;                  // a band must improve the fit by at least this much (dB RMS) to keep its slot
+let fitLo = LIM.fMin, fitHi = LIM.fMax; // effective fit range for the current autoFit() run
 function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9 }; }catch(e){} syncFitCfgUI(); }
 function saveFitCfg(){ try{ localStorage.setItem('dsp-fitcfg', JSON.stringify(fitCfg)); }catch(e){} }
 function syncFitCfgUI(){ if($('fitLow')){ $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands; } }
@@ -893,16 +900,21 @@ function respExcept(bands,k,fs){
 }
 function sharpPenalty(b){ return b.q>4 ? 0.0006*(b.q-4)*(b.q-4)*(b.gain*b.gain+1) : 0; }
 function fitLoss(bandK, others, fs, err){
-  const lo=fitCfg.fLow, hi=fitCfg.fHigh;
-  let se=0, cnt=0, mE=0, mC=0, hc=0;
+  const lo=fitLo, hi=fitHi;
+  let se=0, cnt=0, mE=0, mC=0, hc=0, sp=0, sc=0;
   for(let i=0;i<fs.length;i++){
-    const f=fs[i]; if(f<lo || f>hi) continue;               // only fit within the configured range
+    const f=fs[i];
     const comb=others[i]+(bandK.gain?magDb(bandK,f):0);
-    if(f>10000){ mE+=err[i]; mC+=comb; hc++; }               // above 10 kHz: average energy only
+    if(f<lo || f>hi){ sp+=comb*comb; sc++; }                 // outside the range: the EQ should leave it alone
+    else if(f>10000){ mE+=err[i]; mC+=comb; hc++; }          // above 10 kHz: average energy only
     else { const d=err[i]-comb; se+=d*d; cnt++; }
   }
-  let loss=cnt?se/cnt:0; if(hc){ const d=(mE-mC)/hc; loss+=d*d; }
+  let loss=cnt?se/cnt:0; if(hc){ const d=(mE-mC)/hc; loss+=d*d; } if(sc) loss+=SPILL_W*sp/sc;
   return loss + sharpPenalty(bandK);
+}
+function fitLossAll(bands, fs, err){    // total loss of a whole band set (used when pruning)
+  let pen=0; for(const b of bands) pen+=sharpPenalty(b);
+  return fitLoss({freq:1000,gain:0,q:1,type:'PK'}, respExcept(bands,-1,fs), fs, err) + pen;
 }
 function optParam(bands,k,param,lo,hi,fs,err,logScale){
   const b=bands[k], others=respExcept(bands,k,fs);
@@ -920,22 +932,36 @@ function autoFit(){
   const nB=clamp(Math.round(fitCfg.bands)||NB,1,NB);
   let fLo=Math.max(LIM.fMin, fitCfg.fLow), fHi=Math.min(LIM.fMax, fitCfg.fHigh);
   if(fHi<=fLo){ fLo=LIM.fMin; fHi=LIM.fMax; }               // guard against a bad range
-  // matching-pursuit init: place each band on the biggest remaining error (within range), subtract, repeat
+  fitLo=fLo; fitHi=fHi;
+  // matching-pursuit init: place each band on the biggest remaining error (within range), subtract, repeat.
+  // The residual is reduced by the correction the spot *needs*, not by the gain-capped band, so a capped
+  // band can't leave a residual that drags every following band onto the same frequency. Above 10 kHz
+  // only the average matters (see fitLoss), so bands start at or below 10 kHz; refinement can still move them up.
   const bands=[]; const resid=err.slice();
+  const initHi=(fLo<10000 && fHi>10000) ? 10000 : fHi;
   for(let k=0;k<nB;k++){
-    let bi=-1, bv=0; for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>fHi) continue; if(Math.abs(resid[i])>Math.abs(bv)){ bv=resid[i]; bi=i; } }
-    if(bi<0) break;
+    let bi=-1, bv=0; for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi) continue; if(Math.abs(resid[i])>Math.abs(bv)){ bv=resid[i]; bi=i; } }
+    if(bi<0 || Math.abs(bv)<0.1) break;                       // nothing left worth a band
     const band={ freq:Math.round(clamp(fs[bi],fLo,fHi)), gain:clamp(Math.round(bv*10)/10,LIM.gMin,gMax), q:1.4, type:'PK' };
     bands.push(band);
-    for(let i=0;i<fs.length;i++) resid[i]-=magDb(band,fs[i]);
+    const want={ ...band, gain:Math.round(bv*10)/10 };
+    for(let i=0;i<fs.length;i++) resid[i]-=magDb(want,fs[i]);
   }
-  // coordinate-descent refinement (freq stays within the configured range)
-  for(let round=0;round<6;round++){
-    for(let k=0;k<bands.length;k++){
-      optParam(bands,k,'gain',LIM.gMin,gMax,fs,err);
-      optParam(bands,k,'q',LIM.qMin,LIM.qMax,fs,err);
-      optParam(bands,k,'freq',fLo,fHi,fs,err,true);
-    }
+  // coordinate-descent refinement; a band's frequency only moves within an octave of where it sits
+  const refine=(rounds)=>{ for(let round=0;round<rounds;round++) for(let k=0;k<bands.length;k++){
+    optParam(bands,k,'gain',LIM.gMin,gMax,fs,err);
+    optParam(bands,k,'q',LIM.qMin,LIM.qMax,fs,err);
+    optParam(bands,k,'freq',Math.max(fLo,bands[k].freq/2),Math.min(fHi,bands[k].freq*2),fs,err,true);
+  } };
+  // drop bands the fit doesn't need (they stay flat for hand use): near-flat ones, then, one at a time,
+  // the band whose removal costs the least, as long as that cost is under PRUNE_DB
+  refine(6);
+  for(let k=bands.length-1;k>=0;k--) if(Math.abs(bands[k].gain)<=0.1) bands.splice(k,1);
+  while(bands.length>1){
+    const base=Math.sqrt(fitLossAll(bands,fs,err)); let bk=-1, bc=Infinity;
+    for(let k=0;k<bands.length;k++){ const c=Math.sqrt(fitLossAll(bands.filter((_,j)=>j!==k),fs,err))-base; if(c<bc){ bc=c; bk=k; } }
+    if(bc>=PRUNE_DB) break;
+    bands.splice(bk,1); refine(1);
   }
   bands.sort((a,b)=>a.freq-b.freq);
   pushUndo();

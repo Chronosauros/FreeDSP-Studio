@@ -127,6 +127,13 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.4.0
+- Auto-fit rewritten so it lands where squig.link's Auto EQ does. The old fit searched each band's frequency across the whole range with a method that assumes a single minimum, so bands teleported across the spectrum, piled up next to each other and cancelled out. A band now only moves within an octave of where it sits
+- A gain-capped band can no longer drag every following band onto the same frequency, and bands start at or below 10 kHz
+- Bands the fit doesn't need are left flat for you to use by hand, the way squig leaves filters unused
+- Outside the configured fit range the EQ is kept flat rather than chasing a part of the measurement you have said not to trust
+- On Super* Review's Chu 3 fitted to the Dusk 2, 20 Hz to 6 kHz with 8 bands, the error against the target fell from 0.74 dB to 0.08 dB RMS (squig.link: 0.15 dB)
+
 ### 0.3.0
 - Support for a second generation of cable, on a different wire protocol: HID report `0x4B` over the interrupt endpoints, 8 bands, and a real preamp register instead of the coefficient trick gen-1 needs
 - **Moondrop FreeDSP Mini** (`35D8:98D4`) — 8 bands, ±12 dB, peak / low shelf / high shelf, plus its five firmware voicings
