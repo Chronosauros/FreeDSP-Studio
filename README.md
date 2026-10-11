@@ -128,6 +128,10 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.5.2
+- Auto-fit now spends the bands you ask for. Since 0.4.0 it dropped any band that improved the overall error by less than 0.15 dB, and because that error is averaged over the whole fit range, bands fixing real 1 dB wiggles were thrown away: with 8 bands it typically used about 4. Bands are now only dropped if they do essentially nothing (under 0.02 dB). On 31 test IEMs this took the fit from about 4 to 7 bands used and cut the error by 20 to 30%. To keep bands free for hand tuning, lower the Bands count
+- After a whole-target fit the FR view switches to the treble-corrected view, where the target is drawn the way the fit aims at it (its broad shape above ~6 kHz) with the raw target dotted behind it
+
 ### 0.5.1
 - Auto-fit no longer puts two bands on top of each other (e.g. 7106 and 7120 Hz). The whole-target fit did this most, when a narrow treble feature was only half covered by the band placed on it; the range fit did it occasionally. Bands within a twelfth of an octave are now folded into one filter, and the whole-target fit re-places the freed band where the most error is left. On 32 test IEMs, stacked pairs went from 10 to 0 in each mode, with the whole-target fit slightly more accurate overall (0.325 to 0.312 dB RMS)
 
