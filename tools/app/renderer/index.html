@@ -487,7 +487,11 @@
 
     <!-- setup: saved profiles + start a new test -->
     <div class="tt" id="ttSetup">
-      <div class="tt-text">Pink noise plays through the cable. Each round you hear one treble band on its own, then the full noise with that band nudged up or down, and you say whether it <b>sticks out</b>. The result is a per-tip profile of the peaks and dips your ear hears, used in place of the rig's treble detail.</div>
+      <div class="tt-row"><label>Method</label>
+        <div class="rigtoggle" id="ttMethod"><button data-method="noise">Stands out</button><button data-method="match">Louder / quieter</button></div>
+      </div>
+      <div class="tt-text" id="ttAboutNoise">Pink noise plays through the cable. Each round you hear one treble band on its own, then the full noise with that band nudged up or down, and you say whether it <b>sticks out</b>. The result is a per-tip profile of the peaks and dips your ear hears, used in place of the rig's treble detail.</div>
+      <div class="tt-text hidden" id="ttAboutMatch">Two short bursts of noise play through the cable, each one treble band, one after the other. You say whether the <b>second is quieter, louder or the same</b> as the first, and its level moves until they match. Every band is compared with its neighbours, and the comparisons are solved together so small errors don't pile up. The result is the same kind of per-tip profile as the other method.</div>
       <div class="tt-text"><b>Before you start:</b> fit and write your EQ up to ~6 kHz, leave the treble alone, set the cable as your system output, and turn the volume to a normal listening level in a quiet room.</div>
       <div>
         <span class="seclabel">Profiles for this measurement</span>
@@ -519,6 +523,11 @@
         <button class="btn" id="ttNo">← No, it blends in</button>
         <button class="btn" id="ttYes">Yes, it sticks out →</button>
       </div>
+      <div class="tt-answers hidden" id="ttAnswersM">
+        <button class="btn" id="ttQuieter">← Second is quieter</button>
+        <button class="btn" id="ttEqual">↓ Same</button>
+        <button class="btn" id="ttLouder">Second is louder →</button>
+      </div>
       <div class="hidden" id="ttReseat" style="display:flex; flex-direction:column; gap:10px">
         <div class="tt-text">Halfway. <b>Take the IEMs out and put them back in</b>, so the result averages over two insertions instead of one.</div>
         <button class="btn on" id="ttContinue">Continue</button>
@@ -530,12 +539,12 @@
           <button class="btn" id="ttPause">Pause</button>
         </div>
       </div>
-      <div class="tt-keys">← no · → yes · R replay · space pause</div>
+      <div class="tt-keys" id="ttKeys">← no · → yes · R replay · space pause</div>
     </div>
 
     <!-- result -->
     <div class="tt hidden" id="ttDone">
-      <div class="tt-text">Correction your ear asked for at each band, in dB (what the EQ should add). Its overall level and tilt are removed, because the smoothed rig measurement and the target set those.</div>
+      <div class="tt-text">Correction your ear asked for at each band, in dB (what the EQ should add). Its overall level and tilt are removed, because the smoothed rig measurement and the target set those. It is saved as <b id="ttSaveName"></b>.</div>
       <div class="tt-res" id="ttRes"></div>
       <div class="tt-warn" id="ttDoneWarn"></div>
       <div class="row" style="justify-content:space-between">
@@ -1185,6 +1194,7 @@ let ttA=null;         // audio graph, built on first use
 let tt=null;          // running test
 let ttTimers=[];
 let ttLen='thorough';
+let ttMethod='noise'; // 'noise' (does a band stick out) or 'match' (louder / quieter)
 let ttResult=null;    // finished, not yet saved
 
 function makePink(ctx,secs){
@@ -1272,7 +1282,11 @@ function renderTrebleSetup(){
     row.onclick=()=>{ tr.sel=n; persistFrs(); renderTrebleSetup(); syncTrebleUI(); };
     row.querySelector('.sdel').onclick=(e)=>{ e.stopPropagation(); delete tr.profiles[n]; if(tr.sel===n) tr.sel=Object.keys(tr.profiles)[0]||null; persistFrs(); renderTrebleSetup(); syncTrebleUI(); };
     box.appendChild(row); });
-  document.querySelectorAll('#ttLen button').forEach(b=>b.classList.toggle('on', b.dataset.len===ttLen));
+  document.querySelectorAll('#ttLen button').forEach(b=>{ b.classList.toggle('on', b.dataset.len===ttLen);
+    const mins = ttMethod==='match' ? {quick:2,thorough:4} : {quick:3,thorough:7};
+    b.textContent=`${b.dataset.len==='quick'?'Quick':'Thorough'} · ~${mins[b.dataset.len]} min`; });
+  document.querySelectorAll('#ttMethod button').forEach(b=>b.classList.toggle('on', b.dataset.method===ttMethod));
+  show('ttAboutNoise', ttMethod==='noise'); show('ttAboutMatch', ttMethod==='match');
   // The test measures through whatever is on the cable, so it has to know what that is.
   let warn='';
   if(!cableEq) warn='Not sure what EQ is on the cable. Write your EQ first so the test knows what it is playing through.';
@@ -1282,18 +1296,71 @@ function renderTrebleSetup(){
   show('ttWrite', !!cable && !sameEq(cableEq,model));
 }
 
+// Which method a profile came from, and the label it is saved under (a tip can have one of each).
+const TT_METHOD_LABEL={ noise:'stands out', match:'loudness' };
+function ttProfileName(tip,method){ return `${tip} · ${TT_METHOD_LABEL[method]}`; }
+
+// Loudness matching: two bursts of band-limited pink noise, the first (reference) at 0 dB and the
+// second at d. "Second louder" lowers d, "quieter" raises it, "same" ends the pair. The step
+// starts at 2 dB and halves on each reversal; d is then the level the second band needed to
+// sound as loud as the first.
+const TT_BURST=0.55, TT_BURST_GAP=0.3, TT_MQ=4.32;   // seconds; Q 4.32 = a third of an octave
+function ttPair(i,j){ // random which band is the reference, so order can't bias one side
+  const [r,v]=Math.random()<0.5?[i,j]:[j,i];
+  return { ref:r, vari:v, d:0, step:2, dir:0, n:0, revs:[], eq:false, done:false };
+}
+function ttPairAnswer(s,ans){
+  s.n++;
+  if(ans==='equal'){ s.eq=true; s.done=true; return; }
+  const d = ans==='louder' ? -1 : 1;
+  if(s.dir && d!==s.dir){ s.revs.push(s.d); s.step=Math.max(0.5, s.step/2); }
+  s.dir=d; s.d=clamp(s.d+d*s.step, -12, 12);
+  if(s.revs.length>=4 || s.n>=10) s.done=true;
+}
+function ttPairValue(s){
+  if(s.eq) return s.d;
+  if(s.revs.length>=2){ const r=s.revs.slice(1); return r.reduce((a,b)=>a+b,0)/r.length; }
+  return s.revs.length ? (s.revs[0]+s.d)/2 : s.d;
+}
+// Each pair says corr[vari] - corr[ref] = d. Solve all of them at once by least squares (plus
+// sum = 0 to pin the level), so one shaky comparison is outvoted instead of carried along.
+function ttSolvePairs(pairs,n){
+  const M=Array.from({length:n},()=>new Array(n).fill(0)), v=new Array(n).fill(0);
+  const add=(row,val)=>{ for(let i=0;i<n;i++){ if(!row[i]) continue; v[i]+=row[i]*val; for(let j=0;j<n;j++) M[i][j]+=row[i]*row[j]; } };
+  for(const [r,x,d] of pairs){ const row=new Array(n).fill(0); row[x]=1; row[r]=-1; add(row,d); }
+  add(new Array(n).fill(1),0);
+  for(let c=0;c<n;c++){   // Gaussian elimination with partial pivoting
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    [M[c],M[p]]=[M[p],M[c]]; [v[c],v[p]]=[v[p],v[c]];
+    for(let r=0;r<n;r++){ if(r===c||!M[c][c]) continue; const k=M[r][c]/M[c][c]; for(let j=c;j<n;j++) M[r][j]-=k*M[c][j]; v[r]-=k*v[c]; }
+  }
+  const x=v.map((val,i)=>M[i][i]?val/M[i][i]:0);
+  const res=pairs.map(([r,xi,d])=>d-(x[xi]-x[r]));
+  return { x, rms: Math.sqrt(res.reduce((a,e)=>a+e*e,0)/Math.max(1,res.length)) };
+}
+
 function ttStart(){
   const tip=$('ttTip').value.trim();
   if(!tip){ $('ttTip').focus(); $('ttWarn').textContent='Name the tip you are using, so the profile can be kept per tip.'; return; }
   if(ttLevelOn) ttLevelToggle();
   const eqDuring=(cableEq||model).map(b=>({...b}));
-  const passes = ttLen==='thorough'
-    ? [TT_BANDS.map(f=>ttStair(f,-3)), TT_BANDS.map(f=>ttStair(f,9))]   // from below, then from above
-    : [TT_BANDS.map(f=>ttStair(f,3))];
-  tt={ tip, passes, pass:0, cur:null, last:null, eqDuring, paused:false, asking:false, waitReseat:false };
-  ttView('run'); show('ttReseat',false); show('ttAnswers',true);
+  const thorough=ttLen==='thorough', n=TT_BANDS.length;
+  let passes;
+  if(ttMethod==='match'){
+    const adj=Array.from({length:n-1},(_,i)=>ttPair(i,i+1));          // neighbours
+    const skip=Array.from({length:n-2},(_,i)=>ttPair(i,i+2));         // one apart, as a cross-check
+    passes = thorough ? [adj, skip] : [adj];
+  } else {
+    passes = thorough
+      ? [TT_BANDS.map(f=>ttStair(f,-3)), TT_BANDS.map(f=>ttStair(f,9))]   // from below, then from above
+      : [TT_BANDS.map(f=>ttStair(f,3))];
+  }
+  tt={ tip, method:ttMethod, passes, pass:0, cur:null, last:null, eqDuring, paused:false, asking:false, waitReseat:false };
+  ttView('run'); show('ttReseat',false); ttShowAnswers(true);
+  $('ttKeys').textContent = ttMethod==='match' ? '← quieter · ↓ same · → louder · R replay · space pause' : '← no · → yes · R replay · space pause';
   ttNext();
 }
+function ttShowAnswers(on){ const m=tt && tt.method==='match'; show('ttAnswers', on && !m); show('ttAnswersM', on && m); }
 function ttProgress(){
   let done=0,tot=0; for(const p of tt.passes) for(const s of p){ tot+=10; done += s.done ? 10 : Math.min(9,s.n); }
   $('ttProg').style.width=(100*done/tot).toFixed(1)+'%';
@@ -1304,11 +1371,11 @@ function ttNext(){
   let open=tt.passes[tt.pass].filter(s=>!s.done);
   if(!open.length){
     if(tt.pass+1<tt.passes.length){ tt.pass++; tt.waitReseat=true; tt.asking=false; ttSilence();
-      show('ttAnswers',false); show('ttReseat',true); $('ttFreq').textContent='—'; $('ttPhase').textContent=''; $('ttPhase').className='tt-phase'; $('ttCount').textContent='';
+      ttShowAnswers(false); show('ttReseat',true); $('ttFreq').textContent='—'; $('ttPhase').textContent=''; $('ttPhase').className='tt-phase'; $('ttCount').textContent='';
       return; }
     return ttFinish();
   }
-  // random order, but not the same band twice running when there's a choice
+  // random order, but not the same item twice running when there's a choice
   const pick=shuffled(open).find(s=>s!==tt.last) || open[0];
   tt.cur=pick; tt.last=pick;
   ttPlay();
@@ -1320,23 +1387,40 @@ function ttPlay(){
   const s=tt.cur, t=a.ctx.currentTime+0.05;
   tt.asking=false; ttAnswerBtns(false);
   $('ttCount').textContent = tt.passes.length>1 ? `Pass ${tt.pass+1} of 2` : 'Quick test';
+  $('ttPhase').className='tt-phase';
+  const ask=(at,text)=>ttTimers.push(setTimeout(()=>{ if(!tt) return; tt.asking=true; ttAnswerBtns(true);
+    $('ttPhase').textContent=text; $('ttPhase').className='tt-phase ask'; }, at*1000+50));
+  if(tt.method==='match'){
+    const fr=TT_BANDS[s.ref], fv=TT_BANDS[s.vari], kHz=(f)=>(f/1000).toFixed(1);
+    $('ttFreq').textContent=`${kHz(fr)} → ${kHz(fv)} kHz`;
+    $('ttPhase').textContent='First…';
+    const t2=t+TT_BURST+TT_BURST_GAP;
+    a.bp.Q.setValueAtTime(TT_MQ,t); a.bp.frequency.setValueAtTime(fr,t); a.bp.frequency.setValueAtTime(fv,t2-0.05);
+    ttRamp(a.fullG,0,t);
+    ttRamp(a.cueG,TT_CUE_LVL,t); ttRamp(a.cueG,0,t+TT_BURST);
+    ttRamp(a.cueG,TT_CUE_LVL*Math.pow(10,s.d/20),t2); ttRamp(a.cueG,0,t2+TT_BURST);
+    ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent='…second'; }, (TT_BURST+TT_BURST_GAP)*1000+50));
+    ask(2*TT_BURST+TT_BURST_GAP, 'Was the second quieter, the same, or louder?');
+    return;
+  }
   $('ttFreq').textContent = (s.f/1000).toFixed(1)+' kHz';
-  $('ttPhase').textContent='Listen: the band on its own'; $('ttPhase').className='tt-phase';
+  $('ttPhase').textContent='Listen: the band on its own';
   for(const p of [a.bp,a.pk]){ p.frequency.setValueAtTime(s.f,t); p.Q.setValueAtTime(TT_Q,t); }
   a.pk.gain.setValueAtTime(s.g,t);
   ttRamp(a.fullG,0,t); ttRamp(a.cueG,TT_CUE_LVL,t); ttRamp(a.cueG,0,t+TT_CUE);
   ttRamp(a.fullG,1,t+TT_CUE+TT_GAP); ttRamp(a.fullG,0,t+TT_CUE+TT_GAP+TT_FULL);
   ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent=''; }, (TT_CUE)*1000+50));
-  ttTimers.push(setTimeout(()=>{ if(!tt) return; tt.asking=true; ttAnswerBtns(true);
-    $('ttPhase').textContent='Does that band stick out of the noise?'; $('ttPhase').className='tt-phase ask'; }, (TT_CUE+TT_GAP)*1000+50));
+  ask(TT_CUE+TT_GAP, 'Does that band stick out of the noise?');
 }
-function ttAnswerBtns(on){ $('ttYes').disabled=!on; $('ttNo').disabled=!on; }
-function ttAnswer(heard){
+function ttAnswerBtns(on){ ['ttYes','ttNo','ttQuieter','ttEqual','ttLouder'].forEach(id=>{ $(id).disabled=!on; }); }
+// ans: true / false for "sticks out", or 'louder' / 'quieter' / 'equal' for matching
+function ttAnswer(ans){
   if(!tt || !tt.asking || tt.paused) return;
+  if((tt.method==='match') !== (typeof ans==='string')) return;   // key meant for the other method
   tt.asking=false; ttAnswerBtns(false); ttSilence();
-  ttStairAnswer(tt.cur, heard);
+  if(tt.method==='match') ttPairAnswer(tt.cur, ans); else ttStairAnswer(tt.cur, ans);
   $('ttPhase').textContent=''; $('ttPhase').className='tt-phase';
-  ttTimers.push(setTimeout(ttNext, 700));     // a moment of silence between trials
+  ttTimers.push(setTimeout(ttNext, tt.method==='match' ? 450 : 700));   // a moment of silence between trials
 }
 function ttReplay(){ if(tt && !tt.paused && !tt.waitReseat) ttPlay(); }
 function ttPauseToggle(){
@@ -1345,26 +1429,40 @@ function ttPauseToggle(){
   if(tt.paused){ tt.asking=false; ttSilence(); ttAnswerBtns(false); $('ttPhase').textContent='Paused'; $('ttPhase').className='tt-phase'; }
   else ttPlay();
 }
-function ttContinue(){ if(!tt) return; tt.waitReseat=false; show('ttReseat',false); show('ttAnswers',true); ttNext(); }
+function ttContinue(){ if(!tt) return; tt.waitReseat=false; show('ttReseat',false); ttShowAnswers(true); ttNext(); }
 function ttStop(){ ttHalt(); ttView('setup'); renderTrebleSetup(); }
 function ttFinish(){
   ttSilence();
-  // threshold per band, averaged over passes
-  const thr=TT_BANDS.map((f,i)=>{ const v=tt.passes.map(p=>ttStairValue(p[i])); return [f, v.reduce((a,b)=>a+b,0)/v.length]; });
+  const n=TT_BANDS.length;
+  // per-band raw values (dB the EQ should add, up to an unknown offset), plus a reliability note
+  let raw, extra={}, warn='';
+  if(tt.method==='match'){
+    const pairs=tt.passes.flat().map(s=>[s.ref, s.vari, ttPairValue(s)]);
+    const {x,rms}=ttSolvePairs(pairs,n);
+    raw=x; extra.pairs=pairs.map(([r,v,d])=>[TT_BANDS[r],TT_BANDS[v],Math.round(d*10)/10]);
+    // With the cross-check pass the comparisons over-determine the answer, so their disagreement
+    // says how consistent the listening was.
+    if(tt.passes.length>1 && rms>2) warn=`Your comparisons disagreed with each other by about ${rms.toFixed(1)} dB on average. Consider running it again.`;
+  } else {
+    // threshold per band, averaged over passes; a lower threshold means a peak, so the EQ should cut
+    const thr=TT_BANDS.map((f,i)=>{ const v=tt.passes.map(p=>ttStairValue(p[i])); return v.reduce((a,b)=>a+b,0)/v.length; });
+    raw=thr; extra.thresholds=thr.map((g,i)=>[TT_BANDS[i],Math.round(g*10)/10]);
+    // How far apart the two passes landed, as a rough reliability check.
+    const spread = tt.passes.length>1 ? Math.max(...TT_BANDS.map((_,i)=>Math.abs(ttStairValue(tt.passes[0][i])-ttStairValue(tt.passes[1][i])))) : 0;
+    if(spread>4) warn=`The two passes differed by up to ${spread.toFixed(1)} dB at one band. Fit or concentration may have changed between them; consider running it again.`;
+  }
   // Add back the cable EQ that was playing: the profile describes the bare IEM in your ear, so
   // it stays valid whatever EQ ends up on the cable.
   const eqAt=(f)=>{ let s=0; for(const b of tt.eqDuring) if(b.gain) s+=magDb(b,f); return s; };
-  const bands=ttDetrend(thr.map(([f,g])=>[f, g+eqAt(f)])).map(([f,c])=>[f, Math.round(clamp(c,-9,6)*10)/10]);
-  // How far apart the two passes landed, as a rough reliability check.
-  const spread = tt.passes.length>1 ? Math.max(...TT_BANDS.map((_,i)=>Math.abs(ttStairValue(tt.passes[0][i])-ttStairValue(tt.passes[1][i])))) : null;
-  ttResult={ tip:tt.tip, bands, thresholds:thr.map(([f,g])=>[f,Math.round(g*10)/10]), passes:tt.passes.length,
+  const bands=ttDetrend(TT_BANDS.map((f,i)=>[f, raw[i]+eqAt(f)])).map(([f,c])=>[f, Math.round(clamp(c,-9,6)*10)/10]);
+  ttResult={ tip:ttProfileName(tt.tip,tt.method), method:tt.method, bands, passes:tt.passes.length, ...extra,
              eqDuring:tt.eqDuring, date:new Date().toISOString().slice(0,10) };
   tt=null;
   const box=$('ttRes'); box.innerHTML='';
   bands.forEach(([f,c])=>{ const d=document.createElement('div');
     d.innerHTML=`<span>${(f/1000).toFixed(1)}k</span><b style="color:${c>0?'var(--pos)':c<0?'var(--accent)':'var(--faint)'}">${c>0?'+':''}${c.toFixed(1)}</b>`; box.appendChild(d); });
-  $('ttDoneWarn').textContent = spread!=null && spread>4
-    ? `The two passes differed by up to ${spread.toFixed(1)} dB at one band. Fit or concentration may have changed between them; consider running it again.` : '';
+  $('ttSaveName').textContent=ttResult.tip;
+  $('ttDoneWarn').textContent=warn;
   ttView('done');
 }
 function ttSave(){
@@ -1389,8 +1487,10 @@ function syncTrebleUI(){
 function ttKey(e){
   if($('modalTreble').classList.contains('hidden') || !tt) return;
   if(e.target && e.target.tagName==='INPUT') return;
-  if(e.key==='ArrowLeft'){ e.preventDefault(); ttAnswer(false); }
-  else if(e.key==='ArrowRight'){ e.preventDefault(); ttAnswer(true); }
+  const m=tt.method==='match';
+  if(e.key==='ArrowLeft'){ e.preventDefault(); ttAnswer(m?'quieter':false); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); ttAnswer(m?'louder':true); }
+  else if(e.key==='ArrowDown' && m){ e.preventDefault(); ttAnswer('equal'); }
   else if(e.key==='r'||e.key==='R'){ e.preventDefault(); ttReplay(); }
   else if(e.key===' '){ e.preventDefault(); ttPauseToggle(); }
 }
@@ -1810,6 +1910,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('linkTreble').onclick=openTreble;
   $('trebleView').onclick=()=>{ trebleView=!trebleView; saveTrebleView(); syncTrebleUI(); };
   document.querySelectorAll('#ttLen button').forEach(b=>b.onclick=()=>{ ttLen=b.dataset.len; renderTrebleSetup(); });
+  document.querySelectorAll('#ttMethod button').forEach(b=>b.onclick=()=>{ ttMethod=b.dataset.method; try{ localStorage.setItem('dsp-tt-method',ttMethod); }catch(e){} renderTrebleSetup(); });
+  try{ const mm=localStorage.getItem('dsp-tt-method'); if(mm==='match'||mm==='noise') ttMethod=mm; }catch(e){}
   $('ttLevel').onclick=ttLevelToggle;
   $('ttStart').onclick=ttStart;
   $('ttWrite').onclick=async ()=>{
@@ -1818,6 +1920,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // answer buttons drop focus, so Space can't "click" the last one pressed
   const ttBtn=(id,fn)=>{ $(id).onclick=(e)=>{ e.currentTarget.blur(); fn(); }; };
   ttBtn('ttYes',()=>ttAnswer(true)); ttBtn('ttNo',()=>ttAnswer(false));
+  ttBtn('ttQuieter',()=>ttAnswer('quieter')); ttBtn('ttEqual',()=>ttAnswer('equal')); ttBtn('ttLouder',()=>ttAnswer('louder'));
   ttBtn('ttReplay',ttReplay); ttBtn('ttPause',ttPauseToggle); ttBtn('ttContinue',ttContinue); ttBtn('ttStop',ttStop);
   $('ttSave').onclick=ttSave;
   $('ttDiscard').onclick=()=>{ ttResult=null; ttView('setup'); renderTrebleSetup(); };

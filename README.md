@@ -62,7 +62,7 @@ Windows and macOS. The gen-1 HID transport is split per platform — Windows goe
 - squig.link / AutoEQ import and export (Equalizer APO parametric text)
 - Frequency-response view: load your IEM's measurement and a target, see the EQ'd result
 - Auto-fit the EQ to a target (based on AutoEq): either up to a frequency, leaving the rest of the bands free, or over the whole target using your treble correction
-- Treble listening test: a pink-noise test through the cable that finds the peaks and dips your ear hears above ~6 kHz, where a 711 can't be trusted. Saved per IEM and tip, reused with any target, and switchable on and off in the FR view
+- Treble listening test: a listening test through the cable that finds the peaks and dips your ear hears above ~6 kHz, where a 711 can't be trusted. Two methods: "stands out" (does a band poke out of pink noise?) and "louder / quieter" (match neighbouring bands by level). Saved per IEM, tip and method, reused with any target, and switchable on and off in the FR view
 - Saves your EQs as plain JSON files you can back up or share
 - Nothing touches the cable until you hit Write
 
