@@ -525,7 +525,7 @@
       </div>
       <div class="tt-answers hidden" id="ttAnswersM">
         <button class="btn" id="ttQuieter">← Second is quieter</button>
-        <button class="btn" id="ttEqual">↓ Same</button>
+        <button class="btn" id="ttEqual">Same · space</button>
         <button class="btn" id="ttLouder">Second is louder →</button>
       </div>
       <div class="hidden" id="ttReseat" style="display:flex; flex-direction:column; gap:10px">
@@ -533,13 +533,18 @@
         <button class="btn on" id="ttContinue">Continue</button>
       </div>
       <div class="row" style="justify-content:space-between">
-        <button class="btn" id="ttStop">Stop</button>
         <div class="row" style="gap:8px">
-          <button class="btn" id="ttReplay">Replay</button>
-          <button class="btn" id="ttPause">Pause</button>
+          <button class="btn" id="ttStop">Stop</button>
+          <button class="btn" id="ttUndo" title="Undo the last answer (Backspace)" disabled>Undo · ⌫</button>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn hidden" id="ttFirst" title="Play the first burst again (R)">First · R</button>
+          <button class="btn hidden" id="ttSecond" title="Play the second burst again (V)">Second · V</button>
+          <button class="btn" id="ttReplay" title="Play it again (R)">Replay · R</button>
+          <button class="btn" id="ttPause" title="Pause (space)">Pause · space</button>
         </div>
       </div>
-      <div class="tt-keys" id="ttKeys">← no · → yes · R replay · space pause</div>
+      <div class="tt-keys" id="ttKeys">Keys are on the buttons</div>
     </div>
 
     <!-- result -->
@@ -1355,9 +1360,13 @@ function ttStart(){
       ? [TT_BANDS.map(f=>ttStair(f,-3)), TT_BANDS.map(f=>ttStair(f,9))]   // from below, then from above
       : [TT_BANDS.map(f=>ttStair(f,3))];
   }
-  tt={ tip, method:ttMethod, passes, pass:0, cur:null, last:null, eqDuring, paused:false, asking:false, waitReseat:false };
+  tt={ tip, method:ttMethod, passes, pass:0, cur:null, last:null, eqDuring, paused:false, asking:false, waitReseat:false, undo:[] };
   ttView('run'); show('ttReseat',false); ttShowAnswers(true);
-  $('ttKeys').textContent = ttMethod==='match' ? '← quieter · ↓ same · → louder · R replay · space pause' : '← no · → yes · R replay · space pause';
+  const m=ttMethod==='match';
+  $('ttKeys').textContent = m ? 'Keys are on the buttons · enter plays both again' : 'Keys are on the buttons';
+  show('ttFirst',m); show('ttSecond',m); show('ttReplay',!m);
+  $('ttPause').textContent = m ? 'Pause · P' : 'Pause · space';
+  ttUndoSync();
   ttNext();
 }
 function ttShowAnswers(on){ const m=tt && tt.method==='match'; show('ttAnswers', on && !m); show('ttAnswersM', on && m); }
@@ -1380,27 +1389,34 @@ function ttNext(){
   tt.cur=pick; tt.last=pick;
   ttPlay();
 }
-function ttPlay(){
+// One burst of a loudness pair: 'first' is the reference at 0 dB, 'second' the variable at d.
+function ttBurst(a,s,which,t){
+  const f=TT_BANDS[which==='first'?s.ref:s.vari], lvl=TT_CUE_LVL*(which==='first'?1:Math.pow(10,s.d/20));
+  a.bp.Q.setValueAtTime(TT_MQ,t-0.04); a.bp.frequency.setValueAtTime(f,t-0.04);
+  ttRamp(a.cueG,lvl,t); ttRamp(a.cueG,0,t+TT_BURST);
+}
+function ttFullOff(a,t){ ttRamp(a.fullG,0,t); ttRamp(a.cueG,0,t-0.04); }
+// only: undefined = the whole trial, or 'first' / 'second' to hear one burst of a pair again
+function ttPlay(only){
   if(!tt || !tt.cur) return;
   ttClearTimers();
   const a=ttAudio(); a.ctx.resume();
   const s=tt.cur, t=a.ctx.currentTime+0.05;
-  tt.asking=false; ttAnswerBtns(false);
+  tt.asking=false; ttAnswerBtns(false); ttUndoSync();
   $('ttCount').textContent = tt.passes.length>1 ? `Pass ${tt.pass+1} of 2` : 'Quick test';
   $('ttPhase').className='tt-phase';
   const ask=(at,text)=>ttTimers.push(setTimeout(()=>{ if(!tt) return; tt.asking=true; ttAnswerBtns(true);
     $('ttPhase').textContent=text; $('ttPhase').className='tt-phase ask'; }, at*1000+50));
   if(tt.method==='match'){
-    const fr=TT_BANDS[s.ref], fv=TT_BANDS[s.vari], kHz=(f)=>(f/1000).toFixed(1);
-    $('ttFreq').textContent=`${kHz(fr)} → ${kHz(fv)} kHz`;
-    $('ttPhase').textContent='First…';
+    const kHz=(f)=>(f/1000).toFixed(1);
+    $('ttFreq').textContent=`${kHz(TT_BANDS[s.ref])} → ${kHz(TT_BANDS[s.vari])} kHz`;
     const t2=t+TT_BURST+TT_BURST_GAP;
-    a.bp.Q.setValueAtTime(TT_MQ,t); a.bp.frequency.setValueAtTime(fr,t); a.bp.frequency.setValueAtTime(fv,t2-0.05);
-    ttRamp(a.fullG,0,t);
-    ttRamp(a.cueG,TT_CUE_LVL,t); ttRamp(a.cueG,0,t+TT_BURST);
-    ttRamp(a.cueG,TT_CUE_LVL*Math.pow(10,s.d/20),t2); ttRamp(a.cueG,0,t2+TT_BURST);
-    ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent='…second'; }, (TT_BURST+TT_BURST_GAP)*1000+50));
-    ask(2*TT_BURST+TT_BURST_GAP, 'Was the second quieter, the same, or louder?');
+    ttFullOff(a,t);
+    if(only!=='second'){ ttBurst(a,s,'first',t); $('ttPhase').textContent='First…'; }
+    if(only!=='first'){ const at=only==='second'?t:t2; ttBurst(a,s,'second',at);
+      if(only==='second') $('ttPhase').textContent='…second';
+      else ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent='…second'; }, (TT_BURST+TT_BURST_GAP)*1000+50)); }
+    ask(only ? TT_BURST : 2*TT_BURST+TT_BURST_GAP, 'Was the second quieter, the same, or louder?');
     return;
   }
   $('ttFreq').textContent = (s.f/1000).toFixed(1)+' kHz';
@@ -1418,11 +1434,24 @@ function ttAnswer(ans){
   if(!tt || !tt.asking || tt.paused) return;
   if((tt.method==='match') !== (typeof ans==='string')) return;   // key meant for the other method
   tt.asking=false; ttAnswerBtns(false); ttSilence();
+  tt.undo.push({ item:tt.cur, state:JSON.parse(JSON.stringify(tt.cur)), pass:tt.pass });
   if(tt.method==='match') ttPairAnswer(tt.cur, ans); else ttStairAnswer(tt.cur, ans);
+  ttUndoSync();
   $('ttPhase').textContent=''; $('ttPhase').className='tt-phase';
   ttTimers.push(setTimeout(ttNext, tt.method==='match' ? 450 : 700));   // a moment of silence between trials
 }
-function ttReplay(){ if(tt && !tt.paused && !tt.waitReseat) ttPlay(); }
+function ttReplay(only){ if(tt && !tt.paused && !tt.waitReseat) ttPlay(only); }
+// Takes back the last answer and plays that trial again, even across the re-seat break.
+function ttUndo(){
+  if(!tt || tt.paused || !tt.undo.length) return;
+  const u=tt.undo.pop();
+  for(const k of Object.keys(u.item)) delete u.item[k];
+  Object.assign(u.item, u.state);
+  tt.pass=u.pass; tt.cur=u.item; tt.last=u.item;
+  if(tt.waitReseat){ tt.waitReseat=false; show('ttReseat',false); ttShowAnswers(true); }
+  ttProgress(); ttPlay();
+}
+function ttUndoSync(){ const b=$('ttUndo'); if(b) b.disabled=!tt || !tt.undo || !tt.undo.length; }
 function ttPauseToggle(){
   if(!tt || tt.waitReseat) return;
   tt.paused=!tt.paused; $('ttPause').textContent = tt.paused ? 'Resume' : 'Pause';
@@ -1487,12 +1516,22 @@ function syncTrebleUI(){
 function ttKey(e){
   if($('modalTreble').classList.contains('hidden') || !tt) return;
   if(e.target && e.target.tagName==='INPUT') return;
-  const m=tt.method==='match';
-  if(e.key==='ArrowLeft'){ e.preventDefault(); ttAnswer(m?'quieter':false); }
-  else if(e.key==='ArrowRight'){ e.preventDefault(); ttAnswer(m?'louder':true); }
-  else if(e.key==='ArrowDown' && m){ e.preventDefault(); ttAnswer('equal'); }
-  else if(e.key==='r'||e.key==='R'){ e.preventDefault(); ttReplay(); }
-  else if(e.key===' '){ e.preventDefault(); ttPauseToggle(); }
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  // Same layout as the SoundEQ site: arrows answer, R / V replay, space is "same" when matching
+  // and pause when listening for a band. Backspace undoes the last answer.
+  const m=tt.method==='match', k=e.key.length===1 ? e.key.toLowerCase() : e.key;
+  const act =
+      k==='ArrowLeft'  ? ()=>ttAnswer(m?'quieter':false)
+    : k==='ArrowRight' ? ()=>ttAnswer(m?'louder':true)
+    : k===' '          ? (m ? ()=>ttAnswer('equal') : ttPauseToggle)
+    : k==='ArrowDown' && m ? ()=>ttAnswer('equal')
+    : k==='r'          ? ()=>ttReplay(m?'first':undefined)
+    : k==='v' && m     ? ()=>ttReplay('second')
+    : k==='Enter' && m ? ()=>ttReplay()
+    : k==='p'          ? ttPauseToggle
+    : k==='Backspace'  ? ttUndo
+    : null;
+  if(act){ e.preventDefault(); act(); }
 }
 
 // ---- graph nodes (draggable, layered over the canvas) ----
@@ -1921,7 +1960,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const ttBtn=(id,fn)=>{ $(id).onclick=(e)=>{ e.currentTarget.blur(); fn(); }; };
   ttBtn('ttYes',()=>ttAnswer(true)); ttBtn('ttNo',()=>ttAnswer(false));
   ttBtn('ttQuieter',()=>ttAnswer('quieter')); ttBtn('ttEqual',()=>ttAnswer('equal')); ttBtn('ttLouder',()=>ttAnswer('louder'));
-  ttBtn('ttReplay',ttReplay); ttBtn('ttPause',ttPauseToggle); ttBtn('ttContinue',ttContinue); ttBtn('ttStop',ttStop);
+  ttBtn('ttReplay',()=>ttReplay()); ttBtn('ttFirst',()=>ttReplay('first')); ttBtn('ttSecond',()=>ttReplay('second')); ttBtn('ttUndo',ttUndo); ttBtn('ttPause',ttPauseToggle); ttBtn('ttContinue',ttContinue); ttBtn('ttStop',ttStop);
   $('ttSave').onclick=ttSave;
   $('ttDiscard').onclick=()=>{ ttResult=null; ttView('setup'); renderTrebleSetup(); };
   window.addEventListener('keydown',ttKey);
