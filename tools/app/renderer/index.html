@@ -152,6 +152,7 @@
 
   /* treble listening test */
   .gmode .sep { width:1px; margin:3px 2px; background:var(--line); }
+  #modalTreble { overflow-y:auto; }
   .tt { display:flex; flex-direction:column; gap:12px; }
   .tt-text { font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted); }
   .tt-text b { color:var(--ink-2); font-weight:600; }
@@ -162,6 +163,7 @@
   .tt-row input[type=text]:focus { outline:none; border-color:var(--accent); }
   .tt-warn { font:11.5px/1.45 'IBM Plex Mono',monospace; color:var(--warn); background:var(--warn-bg); border-radius:9px; padding:8px 11px; }
   .tt-warn:empty { display:none; }
+  .tt-warn.ok { color:var(--pos); background:var(--ok-bg); }
   .tt-stage { display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 12px; border-radius:12px; background:var(--row-bg); text-align:center; }
   .tt-freq { font:600 26px/1 'IBM Plex Mono',monospace; color:var(--ink); }
   .tt-phase { font:12.5px/1.4 'IBM Plex Sans',sans-serif; color:var(--muted); min-height:18px; }
@@ -174,6 +176,8 @@
   .tt-res div { display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 4px; border-radius:8px; background:var(--row-bg);
     font:11px/1 'IBM Plex Mono',monospace; color:var(--muted); }
   .tt-res b { font:600 13px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .ttlink { font:11px/1 'IBM Plex Mono',monospace; color:var(--accent); cursor:pointer; }
+  .ttlink.off { color:var(--faint); cursor:default; }
   .tt-keys { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--faint); text-align:center; }
 
   /* graph card */
@@ -491,11 +495,12 @@
       <div class="tt-row"><label>Method</label>
         <div class="rigtoggle" id="ttMethod"><button data-method="noise">Stands out</button><button data-method="match">Louder / quieter</button></div>
       </div>
-      <div class="tt-text" id="ttAboutNoise">Pink noise plays through the cable. Each round you hear one treble band on its own, then the full noise with that band nudged up or down, and you say whether it <b>sticks out</b>. The result is a per-tip profile of the peaks and dips your ear hears, used in place of the rig's treble detail.</div>
-      <div class="tt-text hidden" id="ttAboutMatch">Two short bursts of noise play through the cable, each one treble band, one after the other. You say whether the <b>second is quieter, louder or the same</b> as the first, and its level moves until they match. Every band is compared with its neighbours, and the comparisons are solved together so small errors don't pile up. The result is the same kind of per-tip profile as the other method.</div>
-      <div class="tt-text"><b>Before you start:</b> fit and write your EQ up to ~6 kHz, leave the treble alone, set the cable as your system output, and turn the volume to a normal listening level in a quiet room.</div>
-      <div>
-        <span class="seclabel">Profiles for this measurement</span>
+      <div class="tt-text" id="ttAboutNoise">You hear one treble band on its own, then pink noise with that band nudged up or down, and say whether it <b>sticks out</b>.</div>
+      <div class="tt-text hidden" id="ttAboutMatch">You hear two short bursts of noise, each one treble band, and say whether the <b>second is quieter, louder or the same</b>. Each band is matched against its neighbours.</div>
+      <div class="tt-text"><b>Before you start:</b> cable as system output, normal listening volume, quiet room. If you EQ from a measurement, fit and write it up to ~6 kHz first.</div>
+      <div class="tt-text"><b>Afterwards:</b> <i>Apply to EQ</i> puts the result straight into the EQ's flat bands, or save it as a profile for the TREBLE view and whole-target auto-fit.</div>
+      <div id="ttProfilesWrap">
+        <div class="row spread"><span class="seclabel">Profiles for this measurement</span><a class="ttlink" id="ttApplySel" title="Turn the selected profile into treble bands on the current EQ">Apply selected to EQ</a></div>
         <div class="fr-list" id="ttProfiles" style="margin-top:7px"></div>
       </div>
       <div class="tt-row"><label>Tip</label><input type="text" id="ttTip" placeholder="e.g. Spinfit W1 M" spellcheck="false"></div>
@@ -550,12 +555,15 @@
 
     <!-- result -->
     <div class="tt hidden" id="ttDone">
-      <div class="tt-text">Correction your ear asked for at each band, in dB (what the EQ should add). Its overall level and tilt are removed, because the smoothed rig measurement and the target set those. It is saved as <b id="ttSaveName"></b>.</div>
+      <div class="tt-text">Correction your ear asked for at each band, in dB (what the EQ should add). Only peaks and dips are kept; overall level and tilt are removed. It saves as <b id="ttSaveName"></b>.</div>
       <div class="tt-res" id="ttRes"></div>
       <div class="tt-warn" id="ttDoneWarn"></div>
       <div class="row" style="justify-content:space-between">
         <button class="btn" id="ttDiscard">Discard</button>
-        <button class="btn on" id="ttSave">Save profile</button>
+        <div class="row" style="gap:8px">
+          <button class="btn" id="ttApply" title="Turn this result into treble bands on the current EQ, using its flat bands">Apply to EQ</button>
+          <button class="btn on" id="ttSave">Save profile</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1272,14 +1280,16 @@ function ttDetrend(pts){
 function shuffled(a){ const o=a.slice(); for(let i=o.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [o[i],o[j]]=[o[j],o[i]]; } return o; }
 
 function openTreble(){
-  if(!curMeas || !frCache.meas[curMeas]){ openModal('modalFr'); $('frMsg').textContent='Pick the measurement for the IEM you are testing first.'; return; }
+  // A measurement is only needed to save a profile; the result can always be applied to the EQ.
   openModal('modalTreble'); ttView('setup'); renderTrebleSetup();
 }
 function ttView(v){ show('ttSetup',v==='setup'); show('ttRun',v==='run'); show('ttDone',v==='done'); }
 function sameEq(a,b){ return !!a && !!b && JSON.stringify(a.map(x=>[x.freq,x.gain,x.q,x.type]))===JSON.stringify(b.map(x=>[x.freq,x.gain,x.q,x.type])); }
 function renderTrebleSetup(){
-  const m=frCache.meas[curMeas]; const tr=m.treble||{profiles:{}};
-  $('ttSub').textContent=`Personal treble for "${curMeas}", above ~6 kHz.`;
+  const m=curMeas && frCache.meas[curMeas]; const tr=(m && m.treble)||{profiles:{}};
+  $('ttSub').textContent = m ? `Personal treble for "${curMeas}", above ~6 kHz.` : 'Personal treble above ~6 kHz. No measurement selected: results can be applied to the EQ, not saved.';
+  show('ttProfilesWrap', !!m);
+  $('ttApplySel').classList.toggle('off', !(tr.profiles||{})[tr.sel]);
   const box=$('ttProfiles'); box.innerHTML='';
   const names=Object.keys(tr.profiles||{});
   if(!names.length) box.innerHTML='<div class="savedempty">None yet. Run a test to make one.</div>';
@@ -1299,7 +1309,7 @@ function renderTrebleSetup(){
   if(!cableEq) warn='Not sure what EQ is on the cable. Write your EQ first so the test knows what it is playing through.';
   else if(!sameEq(cableEq,model)) warn='The EQ on screen is not what is on the cable. The test plays through the cable\'s EQ, so write first if you meant to test with this one.';
   else if(cableEq.some(b=>b.gain && b.freq>5000 && b.type==='PK' && Math.abs(b.gain)>=1)) warn='The cable EQ has bands above 5 kHz. That works, but the result is cleanest with the treble left flat.';
-  $('ttWarn').textContent=warn;
+  $('ttWarn').textContent=warn; $('ttWarn').classList.remove('ok');
   show('ttWrite', !!cable && !sameEq(cableEq,model));
 }
 
@@ -1493,7 +1503,9 @@ function ttFinish(){
   bands.forEach(([f,c])=>{ const d=document.createElement('div');
     d.innerHTML=`<span>${(f/1000).toFixed(1)}k</span><b style="color:${c>0?'var(--pos)':c<0?'var(--accent)':'var(--faint)'}">${c>0?'+':''}${c.toFixed(1)}</b>`; box.appendChild(d); });
   $('ttSaveName').textContent=ttResult.tip;
-  $('ttDoneWarn').textContent=warn;
+  $('ttDoneWarn').textContent=warn; $('ttDoneWarn').classList.remove('ok');
+  const canSave=!!(curMeas && frCache.meas[curMeas]); $('ttSave').disabled=!canSave;
+  $('ttSave').title = canSave ? '' : 'Pick a measurement to save profiles. You can still apply this result to the EQ.';
   ttView('done');
 }
 function ttSave(){
@@ -1504,6 +1516,43 @@ function ttSave(){
   persistFrs(); syncTrebleUI(); ttView('setup'); renderTrebleSetup();
   if(graphMode==='fr') drawGraph();
   $('ttWarn').textContent='';
+}
+// ---- apply a result straight to the EQ (what the SoundEQ site does) ----
+// Turns a result into treble bands in the EQ's flat slots, leaving the other bands alone. The
+// profile describes the bare IEM, so what the current EQ already does up there is taken off
+// first: applying twice doesn't double up.
+// The test only knows 7 points, so the fit is to those points, not to a curve drawn between
+// them: one filter at each of the biggest corrections (up to 4), free to shift a twelfth of an
+// octave, gains and widths solved together so overlapping filters don't add up. Two fixed
+// points at 4 and 5 kHz keep the filters from leaking into what the measurement fit covers.
+const TT_APPLY_MAX=4, TT_APPLY_QMAX=6;   // Q 6 ≈ quarter octave; narrower would chase insertion depth
+function applyTrebleToEq(prof){
+  if(!prof) return { ok:false, msg:'No result to apply.' };
+  const free=model.map((b,i)=>b.gain?-1:i).filter(i=>i>=0);
+  if(!free.length) return { ok:false, msg:'Every band is in use. Flatten some (or auto-fit with fewer bands) to leave room for the treble.' };
+  const need=ttDetrend(prof.bands.map(([f,c])=>[f, c-combinedAt(f)])).map(p=>p[1]);   // still to add, local shape only
+  const top=Math.min(LIM.fMax, fitCfg.top||16000), step=Math.pow(2,1/12);
+  const fs=[4000,5000,...TT_BANDS], err=[0,0,...need];
+  fitRun={ lo:0, hi:Infinity, avgAbove:Infinity };    // plain squared error at the points
+  const gMax=curGMax();
+  const bands=need.map((v,i)=>({ v, f:TT_BANDS[i] }))
+    .filter(c=>Math.abs(c.v)>=1.5 && c.f<=top*step)     // smaller is within the test's own precision
+    .sort((x,y)=>Math.abs(y.v)-Math.abs(x.v)).slice(0, Math.min(free.length, TT_APPLY_MAX))
+    .map(c=>({ freq:c.f, gain:clamp(Math.round(c.v*10)/10,LIM.gMin,gMax), q:4, type:'PK', home:c.f }));
+  for(let round=0;round<10;round++) for(let k=0;k<bands.length;k++){
+    const h=bands[k].home;
+    optParam(bands,k,'gain',LIM.gMin,gMax,fs,err);
+    optParam(bands,k,'q',Math.max(LIM.qMin,1),Math.min(LIM.qMax,TT_APPLY_QMAX),fs,err);
+    optParam(bands,k,'freq',h/step,Math.min(top,h*step),fs,err,true);
+  }
+  const keep=bands.filter(b=>Math.abs(b.gain)>=0.5).map(({home,...b})=>b).sort((x,y)=>x.freq-y.freq);
+  if(!keep.length) return { ok:true, msg:'Nothing to add: the current EQ already matches this result in the treble.' };
+  pushUndo();
+  keep.forEach((b,k)=>{ model[free[k]]=b; });
+  const {p}=peak(); if(p+preamp>0) preamp=-(Math.ceil(p*10)/10);   // keep headroom
+  renderAll();
+  const left=free.length-keep.length;
+  return { ok:true, msg:`Added ${keep.length} treble band${keep.length>1?'s':''}${left?` (${left} still flat)`:''}. Write to the cable to hear it.` };
 }
 function saveTrebleView(){ try{ localStorage.setItem('dsp-treble-view', trebleView?'1':'0'); }catch(e){} }
 function loadTrebleView(){ try{ trebleView = localStorage.getItem('dsp-treble-view')!=='0'; }catch(e){} }
@@ -1965,6 +2014,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
   ttBtn('ttQuieter',()=>ttAnswer('quieter')); ttBtn('ttEqual',()=>ttAnswer('equal')); ttBtn('ttLouder',()=>ttAnswer('louder'));
   ttBtn('ttReplay',()=>ttReplay()); ttBtn('ttFirst',()=>ttReplay('first')); ttBtn('ttSecond',()=>ttReplay('second')); ttBtn('ttUndo',ttUndo); ttBtn('ttPause',ttPauseToggle); ttBtn('ttContinue',ttContinue); ttBtn('ttStop',ttStop);
   $('ttSave').onclick=ttSave;
+  const ttNote=(id,r)=>{ const el=$(id); el.textContent=r.msg; el.classList.toggle('ok', r.ok); };
+  $('ttApply').onclick=()=>ttNote('ttDoneWarn', applyTrebleToEq(ttResult));
+  $('ttApplySel').onclick=()=>{ const m=curMeas && frCache.meas[curMeas], t=m && m.treble, prof=t && t.profiles && t.profiles[t.sel];
+    if(prof) ttNote('ttWarn', applyTrebleToEq(prof)); };
   $('ttDiscard').onclick=()=>{ ttResult=null; ttView('setup'); renderTrebleSetup(); };
   window.addEventListener('keydown',ttKey);
   // backup / restore
