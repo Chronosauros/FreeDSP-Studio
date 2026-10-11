@@ -63,16 +63,34 @@
 
   .shell { display:flex; flex-direction:column; height:100vh; border-radius:14px; overflow:hidden; }
 
-  /* ---- Title strip (frameless drag region) ---- */
-  .titlebar { height:56px; flex:none; display:flex; align-items:center; gap:14px; padding:0 20px;
-    background:var(--header-bg); border-bottom:1px solid var(--line); -webkit-app-region:drag; }
+  /* ---- Header: a datasheet strip, and the frameless window's drag region ---- */
+  .titlebar { position:relative; flex:none; min-height:64px; display:flex; align-items:stretch; padding:0 24px;
+    -webkit-app-region:drag; }
+  .titlebar::after { content:''; position:absolute; left:24px; right:24px; bottom:0; height:2px; background:var(--ink-2); }
+  .brand { display:flex; align-items:center; gap:12px; padding:10px 22px 10px 0; border-right:1px solid var(--line); flex:none; }
+  .brand-name { display:block; font-weight:600; font-size:18px; line-height:1.15; letter-spacing:-.01em; }
+  .brand-sub { display:block; margin-top:5px; letter-spacing:.1em; }
+  .specs { flex:1; min-width:0; margin:0; display:flex; overflow:hidden; }
+  .specs > div { flex:none; padding:12px 18px; border-right:1px solid var(--line); }
+  .specs dd { margin:6px 0 0; font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .specs dd.mono { font-size:12.5px; font-weight:400; color:var(--ink-2); }
+  .status { display:flex; align-items:center; gap:7px; }
+  .status .dot { width:6px; height:6px; border-radius:50%; background:var(--ok-dot); flex:none; }
+  .status.warn { color:var(--warn) !important; } .status.warn .dot { background:var(--warn); }
+  .toplinks { display:flex; align-items:center; gap:16px; font:11px/1 'IBM Plex Mono',monospace; }
+  .toplinks a { color:var(--ink-2); cursor:pointer; transition:.12s; }
+  .toplinks a:hover { color:var(--accent); }
+  /* Narrow windows: drop the least useful header cells before anything wraps. */
+  @media (max-width:1400px){ .brand-sub { display:none; } }
+  @media (max-width:1300px){ #specId { display:none; } }
+  @media (max-width:1120px){ #specBands { display:none; } }
   .mark { width:28px; height:28px; border-radius:8px; overflow:hidden; flex:none; display:block; }
   .mark svg { width:100%; height:100%; display:block; }
   .readnote { display:flex; align-items:flex-start; gap:10px; margin-bottom:2px; padding:9px 12px; border-radius:9px;
     font:11.5px/1.45 'IBM Plex Mono',monospace; background:var(--chip-bg); color:var(--ink-2); border:1px solid var(--line); }
   .readnote .rn-x { margin-left:auto; cursor:pointer; color:var(--muted); flex:none; }
   .readnote .rn-x:hover { color:var(--accent); }
-  .gmode { position:absolute; top:10px; right:10px; display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); z-index:2; }
+  .gmode { display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); }
   .gmode button { border:0; cursor:pointer; padding:4px 10px; border-radius:6px; font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.06em; background:transparent; color:var(--muted); transition:.12s; }
   .gmode button.on { background:var(--card); color:var(--accent); }
   .fr-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -87,12 +105,7 @@
   .rigtoggle { display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); }
   .rigtoggle button { border:0; cursor:pointer; padding:6px 14px; border-radius:6px; font:600 11px/1 'IBM Plex Mono',monospace; background:transparent; color:var(--muted); transition:.12s; }
   .rigtoggle button.on { background:var(--accent); color:var(--accent-ink); }
-  .devname { font-size:15px; font-weight:600; letter-spacing:-.01em; }
-  .statuspill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px;
-    background:var(--chip-bg); color:var(--ink-2); font:11px/1 'IBM Plex Mono',monospace; }
-  .statuspill .dot { width:6px; height:6px; border-radius:50%; background:var(--ok-dot); }
-  .statuspill.warn { color:var(--warn); } .statuspill.warn .dot { background:var(--warn); }
-  .tb-right { margin-left:auto; display:flex; align-items:center; gap:10px; -webkit-app-region:no-drag; }
+  .tb-right { margin-left:auto; display:flex; align-items:center; gap:14px; padding-left:18px; -webkit-app-region:no-drag; }
   .themeswitch { display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); }
   .themeswitch button { border:0; cursor:pointer; width:30px; height:24px; border-radius:6px; font-size:12px; line-height:1;
     background:transparent; color:var(--muted); transition:.12s; }
@@ -123,10 +136,39 @@
   .devicebtn:hover { border-color:var(--accent); }
   .devicebtn .muted { font-size:11px; }
 
-  /* workspace */
-  .workspace { flex:1; min-height:0; display:grid; grid-template-columns:1fr 312px; gap:16px; padding:16px 20px; }
-  .col-left { min-width:0; display:flex; flex-direction:column; gap:14px; }
-  .col-rail { display:flex; flex-direction:column; gap:12px; min-height:0; }
+  /* workspace: Fig. 1 + Table 1 on the left, the numbered workflow on the right */
+  .workspace { flex:1; min-height:0; display:flex; gap:0 28px; padding:0 24px; }
+  .ws-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; padding:14px 0 16px; }
+  .ws-rail { flex:0 0 300px; min-height:0; display:flex; flex-direction:column; gap:14px; padding:14px 0 16px; }
+  .rail-scroll { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:16px; }
+  .fighead { flex:none; display:flex; align-items:center; gap:14px; min-height:32px; margin-bottom:8px; }
+  .figtitle { font-size:14px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seclabel.ink2 { color:var(--ink-2); }
+  .grow { flex:1; }
+  .tablehead { margin:12px 0 4px; }
+  .tablehead .btn.sm { padding:6px 10px; }
+
+  /* rail steps */
+  .step-sec { display:flex; flex-direction:column; gap:10px; }
+  .step { margin:0; font:600 14px/1.2 'IBM Plex Sans',sans-serif; color:var(--ink); display:flex; gap:10px; align-items:baseline;
+    border-top:2px solid var(--ink-2); padding-top:9px; }
+  .step b { font:600 12px/1 'IBM Plex Mono',monospace; color:var(--accent); }
+  .step-write { flex:none; }
+  .kv { display:grid; grid-template-columns:64px minmax(0,1fr); gap:7px 10px; align-items:center; }
+  .kv.wide { grid-template-columns:minmax(0,1fr) 96px; }
+  .kvrow { display:contents; }
+  .kv input[type=number] { width:100%; height:32px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink);
+    padding:0 9px; font:12px/1 'IBM Plex Mono',monospace; text-align:right; user-select:text; }
+  .kv input[type=number]:focus { outline:none; border-color:var(--accent); }
+  .frsel { width:100%; min-width:0; height:32px; font:11.5px/1 'IBM Plex Mono',monospace; padding:0 8px; border-radius:8px; background:var(--card); border:1px solid var(--line); color:var(--ink-2); cursor:pointer; }
+  .frsel:hover { border-color:var(--accent); }
+  .steplink { align-self:flex-start; font:11px/1 'IBM Plex Mono',monospace; color:var(--muted); cursor:pointer; }
+  .steplink:hover { color:var(--accent); }
+  .step .steplink { margin-left:auto; font-weight:400; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .steprow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .tprof { font-size:13px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tprof b { font-weight:600; }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-flat); }
   .seclabel { font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; }
@@ -140,16 +182,47 @@
   .btn.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .btn.on:hover { color:var(--accent-ink); filter:brightness(1.05); }
   .btn.iconbtn { padding:5px 7px; display:inline-grid; place-items:center; }
-  .fitcfg { display:flex; flex-direction:column; gap:11px; }
-  .fitcfg-row { display:flex; align-items:center; gap:10px; }
-  .fitcfg-row label { flex:1; font-size:13px; color:var(--ink-2); }
-  .fitcfg-row input { width:96px; font:12px/1 'IBM Plex Mono',monospace; padding:8px 9px; border-radius:8px; background:var(--card); border:1px solid var(--line); color:var(--ink); }
-  .fitcfg-row input:focus { outline:none; border-color:var(--accent); }
-  .fitcfg-row .muted { font:11px/1 'IBM Plex Mono',monospace; width:28px; }
+  .fitmode { border:0; padding:0; margin:0; display:flex; flex-direction:column; gap:7px; font-size:13px; color:var(--ink-2); }
+  .fitmode label { display:flex; gap:8px; align-items:center; cursor:pointer; }
+  .fitmode input { accent-color:var(--accent); margin:0; }
+  .fitnote { font:11.5px/1.45 'IBM Plex Sans',sans-serif; color:var(--muted); }
+  .fitnote b { color:var(--ink-2); font-weight:600; }
+  .fitnote:empty { display:none; }
+  .fitnote a { color:var(--accent); cursor:pointer; }
 
-  /* graph card */
-  .graphcard { position:relative; height:360px; flex:none; border-radius:14px; overflow:hidden;
-    cursor:crosshair; box-shadow:var(--shadow-card); }
+  /* treble listening test */
+  .gmode .sep { width:1px; margin:3px 2px; background:var(--line); }
+  #modalTreble { overflow-y:auto; }
+  .tt { display:flex; flex-direction:column; gap:12px; }
+  .tt-text { font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted); }
+  .tt-text b { color:var(--ink-2); font-weight:600; }
+  .tt-row { display:flex; align-items:center; gap:10px; }
+  .tt-row label { font-size:13px; color:var(--ink-2); flex:none; width:90px; }
+  .tt-row input[type=text] { flex:1; min-width:0; font:12.5px/1 'IBM Plex Sans',sans-serif; padding:8px 10px; border-radius:8px;
+    background:var(--card); border:1px solid var(--line); color:var(--ink); user-select:text; }
+  .tt-row input[type=text]:focus { outline:none; border-color:var(--accent); }
+  .tt-warn { font:11.5px/1.45 'IBM Plex Mono',monospace; color:var(--warn); background:var(--warn-bg); border-radius:9px; padding:8px 11px; }
+  .tt-warn:empty { display:none; }
+  .tt-warn.ok { color:var(--pos); background:var(--ok-bg); }
+  .tt-stage { display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 12px; border-radius:12px; background:var(--row-bg); text-align:center; }
+  .tt-freq { font:600 26px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .tt-phase { font:12.5px/1.4 'IBM Plex Sans',sans-serif; color:var(--muted); min-height:18px; }
+  .tt-phase.ask { color:var(--accent); font-weight:600; }
+  .tt-answers { display:flex; gap:10px; }
+  .tt-answers .btn { flex:1; padding:14px; font-size:13px; }
+  .tt-prog { height:4px; border-radius:2px; background:var(--track); overflow:hidden; }
+  .tt-prog > div { height:100%; width:0; background:var(--accent); transition:width .25s; }
+  .tt-res { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .tt-res div { display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 4px; border-radius:8px; background:var(--row-bg);
+    font:11px/1 'IBM Plex Mono',monospace; color:var(--muted); }
+  .tt-res b { font:600 13px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .ttlink { font:11px/1 'IBM Plex Mono',monospace; color:var(--accent); cursor:pointer; }
+  .ttlink.off { color:var(--faint); cursor:default; }
+  .tt-keys { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--faint); text-align:center; }
+
+  /* Fig. 1 */
+  .graphcard { position:relative; flex:1; min-height:150px; border:1px solid var(--line); border-radius:10px; background:var(--card);
+    overflow:hidden; cursor:crosshair; }
   canvas#graph { position:absolute; inset:0; width:100%; height:100%; display:block; }
   .node { position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
     display:grid; place-items:center; font:600 10px/1 'IBM Plex Mono',monospace; cursor:grab; touch-action:none;
@@ -158,57 +231,46 @@
   .node.active { background:var(--accent); color:var(--accent-ink); }
   .node.grabbing { cursor:grabbing; }
 
-  /* band list card */
-  .bandcard { position:relative; flex:1; min-height:0; padding:14px 16px; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
-  .eqtext-btn { position:absolute; bottom:12px; right:14px; width:28px; height:28px; border-radius:8px; display:grid; place-items:center;
-    background:var(--btn-bg); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:.12s; z-index:2; box-shadow:var(--shadow-flat); }
-  .eqtext-btn:hover { border-color:var(--accent); color:var(--accent); }
-  .bandhead { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .bandhead-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; min-width:0; }
-  .fr-inline { display:flex; align-items:center; gap:6px; }
-  .rigtoggle.sm button { padding:4px 8px; font-size:10px; }
-  .frsel { font:11px/1 'IBM Plex Mono',monospace; padding:5px 6px; border-radius:7px; background:var(--btn-bg); border:1px solid var(--line); color:var(--ink-2); min-width:150px; max-width:210px; cursor:pointer; }
-  .frsel:hover { border-color:var(--accent); }
-  .headbtns { display:flex; gap:6px; }
-  .bandgrid { flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(5,auto); grid-auto-flow:column; gap:7px 14px; align-content:start; }
-  .band { display:grid; grid-template-columns:20px 1fr; gap:9px; align-items:center; padding:7px 9px; border-radius:9px; background:var(--row-bg); }
-  .band.flat { background:transparent; opacity:.45; }
+  /* Table 1: bands. Values are typed; arrow keys nudge, Shift for bigger steps. */
+  .bandwrap { flex:none; }   /* every band always visible: the graph gives up height instead */
+  .bandtable { width:100%; border-collapse:collapse; }
+  .bandtable th { position:sticky; top:0; background:var(--shell); font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); text-align:right; padding:6px 8px 7px; border-bottom:1px solid var(--grid-zero); }
+  .bandtable th:nth-child(-n+2) { text-align:left; }
+  .bandtable th:first-child { padding-left:0; width:30px; }
+  .bandtable th:nth-child(2) { width:58px; }
+  .bandtable th:last-child { text-align:center; width:32%; padding:6px 0 7px 16px; letter-spacing:.06em; }
+  .bandtable td { padding:2px 8px; border-bottom:1px solid var(--line); }
+  .bandtable td:first-child { padding-left:0; }
+  .bandtable td:last-child { padding:2px 0 2px 16px; }
   .band .chip { width:20px; height:20px; border-radius:6px; display:grid; place-items:center;
     font:600 10px/1 'IBM Plex Mono',monospace; background:var(--accent); color:var(--accent-ink); }
   .band.flat .chip { background:var(--node-dim); color:var(--node-dim-ink); }
-  .band .content { display:flex; flex-direction:column; gap:6px; min-width:0; }
-  .band .readout { display:flex; align-items:baseline; gap:8px; }
-  .band .rf { font:500 12.5px/1 'IBM Plex Mono',monospace; color:var(--ink); }
-  .band .rg { font:500 12.5px/1 'IBM Plex Mono',monospace; }
-  .band .rg.pos { color:var(--pos); } .band .rg.cut { color:var(--accent); } .band .rg.zero { color:var(--faint); }
-  .band .rq { font:11px/1 'IBM Plex Mono',monospace; margin-left:auto; color:var(--faint); }
-  .band .rt { font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; color:var(--ink-2); cursor:pointer; }
+  .band .rt { background:none; border:0; padding:0; min-height:26px; font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.08em;
+    color:var(--ink-2); cursor:pointer; }
   .band .rt:hover { color:var(--accent); }
-  .band .sliders { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; }
+  .cell { width:100%; min-width:56px; background:none; border:0; outline:none; padding:6px 0; text-align:right;
+    font:500 12.5px/1 'IBM Plex Mono',monospace; color:var(--ink); user-select:text; }
+  .cell:focus { box-shadow:inset 0 -2px 0 var(--accent); }
+  .cell.pos { color:var(--pos); } .cell.cut { color:var(--accent); } .cell.zero, .band.flat .cell { color:var(--faint); }
+  .gbar { position:relative; height:10px; }
+  .gbar i { position:absolute; left:50%; top:-4px; bottom:-4px; width:1px; background:var(--grid-zero); }
+  .gbar b { position:absolute; top:2px; height:6px; border-radius:2px; background:var(--faint); }
+  .gbar b.pos { background:var(--pos); } .gbar b.cut { background:var(--accent); }
 
-  /* sliders (band + preamp) */
-  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; background:transparent; cursor:pointer; height:12px; margin:0; }
-  input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:2px;
-    background:linear-gradient(to right, var(--accent) var(--pct,0%), var(--track) var(--pct,0%)); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:10px; height:10px; margin-top:-3px;
-    border-radius:50%; background:var(--card); border:2px solid var(--accent); }
-  input[type=range].preamp { height:16px; }
-  input[type=range].preamp::-webkit-slider-thumb { width:16px; height:16px; margin-top:-6px; box-shadow:var(--shadow-node); }
-
-  /* preamp card */
-  .preampcard { padding:14px; display:flex; flex-direction:column; gap:11px; }
+  /* preamp (step 04) */
   .row { display:flex; align-items:center; gap:9px; }
   .row.spread { justify-content:space-between; }
-  .row2 { display:flex; gap:7px; }
-  .row2 .btn { flex:1; }
-  .preampval { font:500 16px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .preampval { display:flex; align-items:baseline; gap:4px; font:500 16px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .preampval input { width:62px; text-align:right; font:inherit; color:inherit; background:transparent; border:0; border-bottom:1px dashed var(--line);
+    outline:none; padding:2px 0; user-select:text; }
+  .preampval input:focus { border-bottom-color:var(--accent); }
   .clip { display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:9px; font:11.5px/1.4 'IBM Plex Mono',monospace; }
   .clip .dot { width:7px; height:7px; border-radius:50%; flex:none; }
   .clip.ok { background:var(--ok-bg); color:var(--pos); } .clip.ok .dot { background:var(--pos); }
   .clip.warn { background:var(--warn-bg); color:var(--warn); } .clip.warn .dot { background:var(--warn); }
 
-  /* active profile card */
-  .profcard { padding:14px; display:flex; flex-direction:column; gap:9px; }
+  /* cable voicing (firmware presets) */
   .presetgrid { display:flex; flex-direction:column; gap:6px; }
   .preset { font:500 12px/1 'IBM Plex Mono',monospace; cursor:pointer; padding:10px 12px; border-radius:8px;
     background:var(--btn-bg); color:var(--ink-2); border:1px solid var(--line); transition:.12s; text-align:left;
@@ -218,13 +280,12 @@
   .preset:disabled { opacity:.45; cursor:not-allowed; }
   .preset:disabled:hover { border-color:var(--line); color:var(--ink-2); }
 
-  /* saved eqs card */
-  .savedcard { flex:1; min-height:0; padding:14px; display:flex; flex-direction:column; gap:9px; overflow:hidden; }
+  /* saved EQs (dialog) */
   .backuplinks { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--muted); }
   .backuplinks a { color:var(--muted); cursor:pointer; } .backuplinks a:hover { color:var(--accent); }
   .backupmsg { font:11px/1 'IBM Plex Mono',monospace; color:var(--pos); }
   .backupmsg:empty { display:none; }
-  .savedlist { flex:1; min-height:0; display:flex; flex-direction:column; gap:5px; overflow:auto; }
+  .savedlist { min-height:0; max-height:360px; display:flex; flex-direction:column; gap:5px; overflow:auto; }
   .saved { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; cursor:pointer; background:var(--row-bg); transition:.12s; }
   .saved:hover { background:var(--chip-bg); }
   .saved .sname { font-size:12.5px; color:var(--ink); }
@@ -244,9 +305,6 @@
     background:var(--accent); color:var(--accent-ink); box-shadow:var(--shadow-accent); transition:.12s; }
   .writebtn:hover { filter:brightness(1.05); }
   .writebtn:disabled { opacity:.6; cursor:not-allowed; filter:none; }
-  .utils { display:flex; justify-content:space-between; font:10.5px/1 'IBM Plex Mono',monospace; }
-  .utils a { color:var(--muted); cursor:pointer; transition:.12s; }
-  .utils a:hover { color:var(--accent); }
   .writenote { font:11.5px/1.35 'IBM Plex Mono',monospace; color:var(--warn); background:var(--warn-bg);
     border:1px solid color-mix(in srgb,var(--warn) 35%,transparent); border-radius:9px; padding:9px 11px; }
 
@@ -274,11 +332,29 @@
 <body>
 <div class="shell">
 
+  <!-- header: brand, the connected cable as a datasheet row, links, window controls -->
   <div class="titlebar">
-    <div class="mark"><svg viewBox="0 0 1024 1024" aria-hidden="true"><defs><linearGradient id="mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b6ef5"/><stop offset="1" stop-color="#34379f"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#mk)"/><path d="M150 588 C 280 588 300 372 448 372 C 566 372 566 664 700 664 C 806 664 828 536 874 536" fill="none" stroke="#fff" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/><circle cx="448" cy="372" r="62" fill="#fff"/><circle cx="700" cy="664" r="62" fill="#fff"/></svg></div>
-    <span class="devname" id="devName">FreeDSP Studio</span>
-    <span class="statuspill hidden" id="statusPill"><span class="dot"></span><span class="mono" id="statusText"></span></span>
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 1024 1024" aria-hidden="true"><defs><linearGradient id="mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b6ef5"/><stop offset="1" stop-color="#34379f"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#mk)"/><path d="M150 588 C 280 588 300 372 448 372 C 566 372 566 664 700 664 C 806 664 828 536 874 536" fill="none" stroke="#fff" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/><circle cx="448" cy="372" r="62" fill="#fff"/><circle cx="700" cy="664" r="62" fill="#fff"/></svg></div>
+      <div>
+        <span class="brand-name">FreeDSP Studio</span>
+        <span class="seclabel brand-sub">Parametric EQ for USB-C DSP cables</span>
+      </div>
+    </div>
+    <dl class="specs hidden" id="specs">
+      <div><dt class="seclabel">Device</dt><dd id="devName"></dd></div>
+      <div id="specId"><dt class="seclabel">USB ID</dt><dd class="mono" id="devId"></dd></div>
+      <div id="specBands"><dt class="seclabel">Bands</dt><dd class="mono" id="devBands"></dd></div>
+      <div><dt class="seclabel">Status</dt><dd class="mono status" id="statusPill"><span class="dot"></span><span id="statusText"></span></dd></div>
+    </dl>
     <div class="tb-right">
+      <nav class="toplinks hidden" id="topLinks">
+        <a id="linkRead" title="Read the cable's current custom bank">read cable</a>
+        <a id="linkSaved" title="Saved EQs and built-in starting points">saved</a>
+        <a id="linkBackup" title="Back up or restore your EQs and FR curves">backup</a>
+        <a id="linkLog" title="Diagnostics log">log</a>
+        <a id="linkAbout" title="About FreeDSP Studio">about</a>
+      </nav>
       <button class="winbtn hidden" id="disconnectBtn" title="Disconnect">⏏</button>
       <div class="themeswitch">
         <button id="themeLight" title="Light">☀</button>
@@ -302,85 +378,102 @@
 
     <div id="workspace" class="workspace hidden">
 
-      <div class="col-left">
-        <div class="readnote hidden" id="readNote">
+      <!-- Fig. 1 and Table 1 -->
+      <div class="ws-main">
+        <div class="readnote hidden" id="readNote" style="margin-bottom:8px">
           <span>Read-back gains are whole dB, the cable can only report integer values, so any decimals are rounded on read. There's nothing the app can do about that. For precise edits, save an EQ and tweak the saved copy rather than relying on the read-back.</span>
           <span class="rn-x" id="readNoteX" title="Dismiss">✕</span>
         </div>
-        <div class="graphcard card" id="graphCard">
-          <canvas id="graph"></canvas>
+        <div class="fighead">
+          <span class="seclabel ink2">Fig. 1</span>
+          <span class="figtitle" id="figTitle">EQ response</span>
+          <div class="grow"></div>
           <div class="gmode">
             <button id="modeEq" class="on" title="EQ curve">EQ</button>
             <button id="modeFr" title="Frequency response vs target">FR</button>
+            <span class="sep hidden" id="trebleSep"></span>
+            <button id="trebleView" class="hidden" title="Show the measurement with your treble correction (smoothed rig level + your listening test above ~6 kHz), or the raw rig measurement">TREBLE</button>
           </div>
         </div>
+        <div class="graphcard" id="graphCard">
+          <canvas id="graph"></canvas>
+        </div>
 
-        <div class="bandcard card">
-          <div class="bandhead">
-            <span class="seclabel" id="bandCountLabel">Custom EQ · 9 bands</span>
-            <div class="bandhead-right">
-            <div class="fr-inline">
-              <div class="rigtoggle sm" id="rigToggleInline"><button data-rig="5128" class="on">5128</button><button data-rig="711">711</button><button data-rig="other">other</button></div>
-              <select id="measSel" class="frsel" title="Measurement"></select>
-              <select id="tgtSel" class="frsel" title="Target"></select>
-            </div>
-            <div class="headbtns">
-              <button class="btn sm on" id="autoFitBtn" title="Auto-fit the 9 bands to your target">Auto-fit</button>
-              <button class="btn sm iconbtn" id="fitCfgBtn" title="Auto-fit settings">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-              <button class="btn sm" id="sortBtn" title="Order bands by frequency">Sort</button>
-              <button class="btn sm" id="flatBtn" title="Reset all bands to flat">Flatten</button>
-              <button class="btn sm" id="undoBtn" title="Undo last change" disabled>↶ Undo</button>
-            </div>
-            </div>
-          </div>
-          <div class="bandgrid" id="bands"></div>
-          <button class="eqtext-btn" id="eqTextBtn" title="Edit the EQ as text (squig / AutoEQ)">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="8" x2="19" y2="8"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="16" x2="13" y2="16"/></svg>
-          </button>
+        <div class="fighead tablehead">
+          <span class="seclabel ink2">Table 1</span>
+          <span class="figtitle">Bands</span>
+          <div class="grow"></div>
+          <button class="btn sm" id="sortBtn" title="Order bands by frequency">Sort</button>
+          <button class="btn sm" id="flatBtn" title="Reset all bands to flat">Flatten</button>
+          <button class="btn sm" id="undoBtn" title="Undo last change" disabled>↶ Undo</button>
+          <button class="btn sm" id="eqTextBtn" title="Edit the EQ as text (squig / AutoEQ)">As text</button>
+        </div>
+        <div class="bandwrap">
+          <table class="bandtable">
+            <thead><tr><th scope="col">#</th><th scope="col">Type</th><th scope="col">Freq, Hz</th><th scope="col">Gain, dB</th><th scope="col">Q</th><th scope="col" id="barScale">−12 · 0 · +12</th></tr></thead>
+            <tbody id="bands"></tbody>
+          </table>
         </div>
       </div>
 
-      <div class="col-rail">
-        <div class="profcard card hidden" id="profCard">
-          <span class="seclabel">Active profile</span>
+      <!-- the workflow, in order -->
+      <div class="ws-rail">
+       <div class="rail-scroll">
+        <section class="step-sec hidden" id="profCard">
+          <h2 class="step">Cable voicing</h2>
           <div class="presetgrid" id="presetGrid"></div>
-        </div>
+        </section>
 
-        <div class="preampcard card">
-          <div class="row spread">
-            <span class="seclabel">Preamp</span>
-            <span class="preampval" id="preampVal">0.0 dB</span>
+        <section class="step-sec">
+          <h2 class="step"><b>01</b>Measurement<a class="steplink" id="linkFr" title="Import and manage measurement and target files">FR files…</a></h2>
+          <div class="rigtoggle" id="rigToggleInline"><button data-rig="5128" class="on">5128</button><button data-rig="711">711</button><button data-rig="other">other</button></div>
+          <div class="kv">
+            <label class="seclabel" for="measSel">IEM</label><select id="measSel" class="frsel" title="Measurement"></select>
+            <label class="seclabel" for="tgtSel">Target</label><select id="tgtSel" class="frsel" title="Target"></select>
           </div>
-          <input type="range" class="preamp" id="preampSlider" min="-20" max="0" step="0.1" value="0">
-          <div class="row2">
-            <button class="btn" id="autoPreampBtn" title="Set preamp to just avoid clipping">Auto headroom</button>
-            <button class="btn" id="hiGainBtn" title="Raise the per-band ceiling from +3 to +6 dB">+6 dB mode</button>
+        </section>
+
+        <section class="step-sec">
+          <h2 class="step"><b>02</b>Fit<a class="steplink" id="fitCfgReset" title="Back to the default fit settings">reset</a></h2>
+          <fieldset class="fitmode" id="fitMode">
+            <legend class="sr">Spend the bands on</legend>
+            <label><input type="radio" name="fitMode" value="range"> Measurement only, up to a frequency</label>
+            <label><input type="radio" name="fitMode" value="treble"> Whole target, treble from your ears</label>
+          </fieldset>
+          <div class="kv wide">
+            <div class="kvrow" id="fitLowRow"><label class="seclabel" for="fitLow">Low bound, Hz</label><input type="number" id="fitLow" min="20" max="20000" step="10"></div>
+            <div class="kvrow" id="fitHighRow"><label class="seclabel" for="fitHigh">High bound, Hz</label><input type="number" id="fitHigh" min="20" max="20000" step="10"></div>
+            <div class="kvrow hidden" id="fitTopRow"><label class="seclabel" for="fitTop" title="Nothing is fitted above this: set it to where your hearing stops">Upper limit, Hz</label><input type="number" id="fitTop" min="8000" max="20000" step="500"></div>
+            <div class="kvrow"><label class="seclabel" for="fitBands">Bands <span id="fitBandsOf">of 9</span></label><input type="number" id="fitBands" min="1" max="9" step="1"></div>
+          </div>
+          <div class="fitnote" id="fitModeNote"></div>
+          <button class="btn on" id="autoFitBtn" title="Auto-fit the bands to your target" style="align-self:flex-start">Auto-fit</button>
+        </section>
+
+        <section class="step-sec">
+          <h2 class="step"><b>03</b>Treble, by ear<a class="steplink" id="trebleChange" title="Saved treble profiles for this measurement">profiles</a></h2>
+          <span class="tprof" id="trebleProf"></span>
+          <div class="steprow">
+            <button class="btn" id="trebleRun" title="Run the treble listening test">Run test</button>
+            <button class="btn" id="trebleApply" title="Turn the selected profile into treble bands in the EQ's flat slots">Apply to EQ</button>
+          </div>
+          <div class="tt-warn" id="trebleMsg"></div>
+        </section>
+       </div>
+
+        <section class="step-sec step-write">
+          <h2 class="step"><b>04</b>Write</h2>
+          <div class="steprow">
+            <label class="seclabel" for="preampVal">Preamp</label>
+            <span class="preampval"><input type="text" inputmode="decimal" id="preampVal" value="0.0" spellcheck="false" title="Type a preamp value (dB)">dB</span>
+            <div class="grow"></div>
+            <button class="btn sm" id="autoPreampBtn" title="Set preamp to just avoid clipping">Auto headroom</button>
+            <button class="btn sm" id="hiGainBtn" title="Raise the per-band ceiling from +3 to +6 dB">+6 dB</button>
           </div>
           <div class="clip ok" id="clip"><span class="dot"></span><span id="clipText"></span></div>
-        </div>
-
-        <div class="savedcard card">
-          <span class="seclabel">Saved EQs</span>
-          <div class="savedlist" id="savedChips"></div>
-          <div class="savedfoot">
-            <input type="text" id="saveName" placeholder="Name…">
-            <button class="btn" id="saveBtn">Save</button>
-          </div>
-        </div>
-
-        <div class="writewrap">
           <div class="writenote hidden" id="writeNote"></div>
           <button class="writebtn" id="writeBtn">Write to cable</button>
-          <div class="utils">
-            <a id="linkRead" title="Read the cable's current custom bank">read cable</a>
-            <a id="linkBackup" title="Back up or restore your EQs and FR curves">backup</a>
-            <a id="linkLog" title="Diagnostics log">log</a>
-            <a id="linkFr" title="Measurement and target">FR</a>
-            <a id="linkAbout" title="About FreeDSP Studio">about</a>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   </div>
@@ -419,19 +512,99 @@
     <input type="file" id="backupFile" accept=".json" style="display:none">
   </div>
 
-  <div class="modal hidden" id="modalFitCfg">
+  <div class="modal hidden" id="modalSaved">
     <div class="mhead">
-      <div><div class="mtitle">Auto-fit settings</div><div class="msub">Limit the fit to a frequency range and a number of bands. Outside the range the EQ is kept flat, and bands beyond the limit (or ones the fit doesn't need) are left flat for you to use by hand — handy when a rig measures poorly up top (e.g. 711 above ~6 kHz).</div></div>
+      <div><div class="mtitle">Saved EQs</div><div class="msub">Click one to load it into the editor. The built-in DUSK starting points come first.</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
-    <div class="fitcfg">
-      <div class="fitcfg-row"><label>Low bound</label><input type="number" id="fitLow" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row"><label>High bound</label><input type="number" id="fitHigh" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row"><label>Bands to fit</label><input type="number" id="fitBands" min="1" max="9" step="1"><span class="muted" id="fitBandsOf">of 9</span></div>
+    <div class="savedlist" id="savedChips"></div>
+    <div class="savedfoot">
+      <input type="text" id="saveName" placeholder="Name the current EQ…">
+      <button class="btn on" id="saveBtn">Save</button>
     </div>
-    <div class="row" style="justify-content:space-between">
-      <button class="btn" id="fitCfgReset">Reset</button>
-      <button class="btn on" id="fitCfgDone">Done</button>
+  </div>
+
+  <div class="modal hidden" id="modalTreble">
+    <div class="mhead">
+      <div><div class="mtitle">Treble listening test</div><div class="msub" id="ttSub">Personal treble for the selected measurement, above ~6 kHz.</div></div>
+      <button class="winbtn" data-close title="Close">✕</button>
+    </div>
+
+    <!-- setup: saved profiles + start a new test -->
+    <div class="tt" id="ttSetup">
+      <div class="tt-row"><label>Method</label>
+        <div class="rigtoggle" id="ttMethod"><button data-method="noise">Stands out</button><button data-method="match">Louder / quieter</button></div>
+      </div>
+      <div class="tt-text" id="ttAboutNoise">You hear one treble band on its own, then pink noise with that band nudged up or down, and say whether it <b>sticks out</b>.</div>
+      <div class="tt-text hidden" id="ttAboutMatch">You hear two short bursts of noise, each one treble band, and say whether the <b>second is quieter, louder or the same</b>. Each band is matched against its neighbours.</div>
+      <div class="tt-text"><b>Before you start:</b> cable as system output, normal listening volume, quiet room. If you EQ from a measurement, fit and write it up to ~6 kHz first.</div>
+      <div class="tt-text"><b>Afterwards:</b> <i>Apply to EQ</i> puts the result straight into the EQ's flat bands, or save it as a profile for the TREBLE view and whole-target auto-fit.</div>
+      <div id="ttProfilesWrap">
+        <div class="row spread"><span class="seclabel">Profiles for this measurement</span><a class="ttlink" id="ttApplySel" title="Turn the selected profile into treble bands on the current EQ">Apply selected to EQ</a></div>
+        <div class="fr-list" id="ttProfiles" style="margin-top:7px"></div>
+      </div>
+      <div class="tt-row"><label>Tip</label><input type="text" id="ttTip" placeholder="e.g. Spinfit W1 M" spellcheck="false"></div>
+      <div class="tt-row"><label>Length</label>
+        <div class="rigtoggle" id="ttLen"><button data-len="quick">Quick · ~3 min</button><button data-len="thorough">Thorough · ~7 min</button></div>
+      </div>
+      <div class="tt-warn" id="ttWarn"></div>
+      <div class="row" style="justify-content:space-between">
+        <button class="btn" id="ttLevel">▶ Level check</button>
+        <div class="row" style="gap:8px">
+          <button class="btn hidden" id="ttWrite">Write EQ to cable</button>
+          <button class="btn on" id="ttStart">Start test</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- running -->
+    <div class="tt hidden" id="ttRun">
+      <div class="tt-prog"><div id="ttProg"></div></div>
+      <div class="tt-stage">
+        <span class="seclabel" id="ttCount"></span>
+        <div class="tt-freq" id="ttFreq">—</div>
+        <div class="tt-phase" id="ttPhase"></div>
+      </div>
+      <div class="tt-answers" id="ttAnswers">
+        <button class="btn" id="ttNo">← No, it blends in</button>
+        <button class="btn" id="ttYes">Yes, it sticks out →</button>
+      </div>
+      <div class="tt-answers hidden" id="ttAnswersM">
+        <button class="btn" id="ttQuieter">← Second is quieter</button>
+        <button class="btn" id="ttEqual">Same · space</button>
+        <button class="btn" id="ttLouder">Second is louder →</button>
+      </div>
+      <div class="hidden" id="ttReseat" style="display:flex; flex-direction:column; gap:10px">
+        <div class="tt-text">Halfway. <b>Take the IEMs out and put them back in</b>, so the result averages over two insertions instead of one.</div>
+        <button class="btn on" id="ttContinue">Continue</button>
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <div class="row" style="gap:8px">
+          <button class="btn" id="ttStop">Stop</button>
+          <button class="btn" id="ttUndo" title="Undo the last answer (Backspace)" disabled>Undo · ⌫</button>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn hidden" id="ttFirst" title="Play the first burst again (R)">First · R</button>
+          <button class="btn hidden" id="ttSecond" title="Play the second burst again (V)">Second · V</button>
+          <button class="btn" id="ttReplay" title="Play it again (R)">Replay · R</button>
+          <button class="btn" id="ttPause" title="Pause (space)">Pause · space</button>
+        </div>
+      </div>
+      <div class="tt-keys" id="ttKeys">Keys are on the buttons</div>
+    </div>
+
+    <!-- result -->
+    <div class="tt hidden" id="ttDone">
+      <div class="tt-text">Correction your ear asked for at each band, in dB (what the EQ should add). Only peaks and dips are kept; overall level and tilt are removed. It saves as <b id="ttSaveName"></b>.</div>
+      <div class="tt-res" id="ttRes"></div>
+      <div class="tt-warn" id="ttDoneWarn"></div>
+      <div class="row" style="justify-content:space-between">
+        <button class="btn" id="ttDiscard">Discard</button>
+        <div class="row" style="gap:8px">
+          <button class="btn" id="ttApply" title="Turn this result into treble bands on the current EQ, using its flat bands">Apply to EQ</button>
+          <button class="btn on" id="ttSave">Save profile</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -594,7 +767,7 @@ let graphMode = 'eq';                     // 'eq' or 'fr'
 let frCache = { meas:{}, targets:{} };    // name -> {rig, points:[[freq,db]...]}
 let curMeas = null, curTgt = null;        // selected names
 let activeRig = '5128';                   // 5128 / 711 / other — lists are filtered to this so rigs can't mix
-let fitCfg = { fLow:20, fHigh:20000, bands:9 };   // auto-fit bounds + band budget (persisted)
+let fitCfg = { fLow:20, fHigh:20000, bands:9, mode:'range', top:16000 };   // auto-fit mode, bounds, band budget, whole-target upper limit (persisted)
 let preamp = 0;
 let hiGain = false;   // "+6 dB mode", raises the per-band gain cap
 let gCeil = 6;        // ceiling used when +6 dB mode is on
@@ -607,7 +780,6 @@ function snap(){ return { model: model.map(b=>({...b})), preamp, hiGain, gCeil }
 function pushUndo(){ const s=snap(); if(history.length && JSON.stringify(history[history.length-1])===JSON.stringify(s)) return; history.push(s); if(history.length>60) history.shift(); updateUndoBtn(); }
 function undo(){ if(!history.length) return; const s=history.pop(); model=s.model.map(b=>({...b})); preamp=s.preamp; hiGain=s.hiGain; gCeil=s.gCeil; renderAll(); updateUndoBtn(); }
 function updateUndoBtn(){ const b=$('undoBtn'); if(b) b.disabled=!history.length; }
-function paintSlider(inp){ const mn=+inp.min, mx=+inp.max, pct=((+inp.value-mn)/(mx-mn))*100; inp.style.setProperty('--pct', pct.toFixed(1)+'%'); }
 
 // ---- EQ math (RBJ cookbook) ----
 function rbj(type,f,g,q,fs){
@@ -665,7 +837,6 @@ function resetCableCaps(){
 }
 // Labels and controls that only make sense for one generation.
 function syncCapUI(){
-  const lbl=$('bandCountLabel'); if(lbl) lbl.textContent=`Custom EQ · ${NB} bands`;
   const af=$('autoFitBtn'); if(af) af.title=`Auto-fit the ${NB} bands to your target`;
   const fb=$('fitBands'); if(fb){ fb.max=NB; if(+fb.value>NB) fb.value=NB; }
   const fo=$('fitBandsOf'); if(fo) fo.textContent=`of ${NB}`;
@@ -680,6 +851,9 @@ const dbToY = (db) => 1-((db-DB_MIN)/DB_SPAN);                   // 0..1 (top=0)
 
 // ---- graph ----
 function drawGraph(){
+  const ft=$('figTitle');
+  if(ft){ const n=model.filter(b=>b.gain).length;
+    ft.textContent = graphMode==='fr' && curMeas && frCache.meas[curMeas] ? `Response vs target · ${curMeas}` : `EQ response, ${n} of ${NB} bands`; }
   const cv=$('graph'); if(!cv) return; const dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth, H=cv.clientHeight; if(!W||!H) return; cv.width=W*dpr; cv.height=H*dpr;
   const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
@@ -713,7 +887,7 @@ function drawGraph(){
 }
 
 // ---- preamp / clip ----
-function syncPreampUI(){ const s=$('preampSlider'); if(s){ s.value=preamp; $('preampVal').textContent=preamp.toFixed(1)+' dB'; paintSlider(s); } }
+function syncPreampUI(){ const v=$('preampVal'); if(v && document.activeElement!==v) v.value=preamp.toFixed(1); }
 function setPreamp(v){ preamp=Math.round(clamp(v,-20,0)*10)/10; syncPreampUI(); drawGraph(); updateClip(); }
 function updateClip(){
   const {p:raw,pf}=peak(); const eff=raw+preamp; const el=$('clip'), t=$('clipText');
@@ -756,8 +930,10 @@ function drawFR(ctx,W,H,css,x){
         pos=css.getPropertyValue('--pos'), ink=css.getPropertyValue('--ink-2');
   const meas=frCache.meas[curMeas].points;
   const tgt = tgtRec() ? tgtRec().points : null;
+  const prof = trebleView ? activeTrebleProfile() : null;      // ear-corrected view, when on and available
+  const measAt = prof ? (f)=>earMeasAt(meas,prof,f) : (f)=>interpFR(meas,f);
   const eq1k=combinedAt(1000);
-  const result=(f)=> interpFR(meas,f) + combinedAt(f) - eq1k;   // EQ'd, re-normalised at 1 kHz
+  const result=(f)=> measAt(f) + combinedAt(f) - eq1k;          // EQ'd, re-normalised at 1 kHz
   // auto y-range over the visible curves
   let lo=Infinity, hi=-Infinity;
   for(let px=0;px<=W;px+=4){ const f=20*Math.pow(1000,px/W);
@@ -771,16 +947,23 @@ function drawFR(ctx,W,H,css,x){
   for(let db=lo; db<=hi; db+=5){ const py=y(db); ctx.strokeStyle=gridLine; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke(); ctx.fillStyle=faint; ctx.fillText(db, 9, py-3); }
   const curve=(fn,color,width,dash)=>{ ctx.setLineDash(dash||[]); ctx.strokeStyle=color; ctx.lineWidth=width;
     ctx.beginPath(); for(let px=0;px<=W;px+=1){ const f=20*Math.pow(1000,px/W); const v=fn(f); px===0?ctx.moveTo(px,y(v)):ctx.lineTo(px,y(v)); } ctx.stroke(); ctx.setLineDash([]); };
-  curve((f)=>interpFR(meas,f), band, 1.5);           // raw measurement
-  if(tgt) curve((f)=>interpFR(tgt,f), pos, 2, [6,4]); // target (dashed)
-  curve(result, accent, 2.5);                         // EQ'd result
+  // ear-corrected view: shade the region where the listening test replaces the rig's detail
+  if(prof){ const x0=x(TT_X0), x1=x(TT_HI); const g=ctx.createLinearGradient(x0,0,x(TT_X1),0);
+    g.addColorStop(0,'transparent'); g.addColorStop(1,(css.getPropertyValue('--accent-fill').trim()||'transparent'));
+    ctx.globalAlpha=0.35; ctx.fillStyle=g; ctx.fillRect(x0,0,x1-x0,H); ctx.globalAlpha=1; }
+  curve((f)=>interpFR(meas,f), band, 1.5, prof?[2,3]:null);  // raw measurement (dotted when corrected)
+  if(prof) curve(measAt, ink, 1.5);                           // ear-corrected measurement
+  if(tgt) curve((f)=>interpFR(tgt,f), pos, 2, [6,4]);         // target (dashed)
+  curve(result, accent, 2.5);                                 // EQ'd result
   // legend
   ctx.font="10px 'IBM Plex Mono',monospace"; ctx.textBaseline='middle';
   let lx=14; const ly=14;
   const leg=(label,color,dash)=>{ ctx.setLineDash(dash||[]); ctx.strokeStyle=color; ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+16,ly); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle=ink; ctx.fillText(label, lx+21, ly); lx += 21 + ctx.measureText(label).width + 16; };
-  leg('measurement', band); if(tgt) leg('target', pos, [6,4]); leg('with EQ', accent);
+  leg(prof?'rig':'measurement', band, prof?[2,3]:null);
+  if(prof) leg(`ear-corrected · ${frCache.meas[curMeas].treble.sel}`, ink);
+  if(tgt) leg('target', pos, [6,4]); leg('with EQ', accent);
   ctx.textBaseline='alphabetic';
 }
 
@@ -862,6 +1045,7 @@ function renderFrLists(){
       tbox.appendChild(row); });
   }
   fillMeasSel(); fillTgtSel();
+  if($('trebleView')) syncTrebleUI();
 }
 function setGraphMode(m){
   if(m==='fr' && !curMeas){ openModal('modalFr'); return; }   // need a measurement first
@@ -869,6 +1053,7 @@ function setGraphMode(m){
   $('modeEq').classList.toggle('on', m==='eq'); $('modeFr').classList.toggle('on', m==='fr');
   nodeEls.forEach(n=>{ n.style.display = m==='fr' ? 'none' : ''; });
   $('graphCard').style.cursor = m==='fr' ? 'default' : 'crosshair';
+  syncTrebleUI();
   drawGraph();
 }
 
@@ -884,13 +1069,77 @@ const FIT_N = 180;
 const SPILL_W = 0.1;                    // weight of the "stay flat outside the fit range" term
 const PRUNE_DB = 0.15;                  // a band must improve the fit by at least this much (dB RMS) to keep its slot
 let fitLo = LIM.fMin, fitHi = LIM.fMax; // effective fit range for the current autoFit() run
-function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9 }; }catch(e){} syncFitCfgUI(); }
+let fitAvgAbove = 10000;                // above this only average energy is matched (the treble profile moves it up)
+function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9, mode:o.mode==='treble'?'treble':'range', top:o.top||16000 }; }catch(e){} syncFitCfgUI(); }
 function saveFitCfg(){ try{ localStorage.setItem('dsp-fitcfg', JSON.stringify(fitCfg)); }catch(e){} }
-function syncFitCfgUI(){ if($('fitLow')){ $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands; } }
-function fitGridErr(){                 // the correction the EQ should produce
+function syncFitCfgUI(){
+  if(!$('fitLow')) return;
+  $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands;
+  const tm=fitCfg.mode==='treble';
+  document.querySelectorAll('#fitMode input').forEach(r=>{ r.checked = r.value===fitCfg.mode; });
+  show('fitLowRow',!tm); show('fitHighRow',!tm); show('fitTopRow',tm); $('fitTop').value=fitCfg.top;
+  const prof=activeTrebleProfile();
+  $('fitModeNote').innerHTML = !tm
+    ? 'Outside the bounds the EQ is kept flat; bands the fit doesn\'t need stay free.'
+    : prof
+      ? `Above ~6 kHz the fit follows the target's broad shape and your <b>${escHtml(frCache.meas[curMeas].treble.sel)}</b> profile, not the rig's treble detail.`
+      : `Needs a treble profile for this measurement (step 03). <a id="fitRunTest">Run the test…</a>`;
+  const rt=$('fitRunTest'); if(rt) rt.onclick=()=>openTreble();
+}
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---- treble correction (listening-test profile) ----
+// Above ~6 kHz a coupler's fine detail doesn't match anyone's ear (the 711's 8 kHz peak is the
+// classic case), so with a profile active the fit stops trusting it there:
+//   - the measurement and target are both heavily smoothed, so only their broad level and shape
+//     (the target's "gist") survive and coupler peaks drop out, and
+//   - the listening test supplies the narrow peaks and dips as your ear hears this IEM + tip.
+// Below TT_X0 nothing changes; between TT_X0 and TT_X1 it crossfades.
+const TT_BANDS=[6300,7100,8000,9000,10000,11200,12500], TT_Q=3.5;
+const TT_X0=5000, TT_X1=6300;   // crossfade from raw rig data to the corrected view
+const TT_HI=16000;              // the profile tapers to nothing between the top band and here
+let trebleView=true;            // FR view shows the ear-corrected measurement when a profile exists
+function logRamp(f,a,b){ return f<=a?0 : f>=b?1 : Math.log(f/a)/Math.log(b/a); }
+function activeTrebleProfile(){
+  const m=curMeas && frCache.meas[curMeas]; const t=m && m.treble;
+  return (t && t.profiles && t.profiles[t.sel]) || null;
+}
+// What the EQ should add at f according to the profile, tapered to 0 outside the tested bands.
+function trebleCorrAt(prof,f){
+  const pts=prof.bands, f0=pts[0][0], f1=pts[pts.length-1][0];
+  if(f<=TT_X0 || f>=TT_HI) return 0;
+  if(f<f0) return pts[0][1]*logRamp(f,TT_X0,f0);
+  if(f>f1) return pts[pts.length-1][1]*(1-logRamp(f,f1,TT_HI));
+  return interpFR(pts,f);
+}
+// Broad version of a curve: running median over an octave (a narrow coupler peak is under half
+// the window, so it barely moves the median), then a 1/3-octave mean to round off the steps.
+const _smoothCache=new WeakMap();
+function smoothedFR(pts){
+  let out=_smoothCache.get(pts); if(out) return out;
+  const N=480, per=N/Math.log2(1000), hw=Math.round(per/2), hm=Math.round(per/6);
+  const fs=[], raw=[];
+  for(let i=0;i<=N;i++){ const f=20*Math.pow(1000,i/N); fs.push(f); raw.push(interpFR(pts,f)); }
+  const med=raw.map((_,i)=>{ const w=raw.slice(Math.max(0,i-hw), Math.min(N,i+hw)+1).sort((a,b)=>a-b); return w[w.length>>1]; });
+  out=fs.map((f,i)=>{ let s=0,n=0; for(let j=Math.max(0,i-hm); j<=Math.min(N,i+hm); j++){ s+=med[j]; n++; } return [f, s/n]; });
+  _smoothCache.set(pts,out); return out;
+}
+// The measurement as your ear has it: raw below ~5 kHz, smoothed rig level minus your
+// correction above ~6 kHz (a dip where the test asked for a boost).
+function earMeasAt(meas,prof,f){
+  const raw=interpFR(meas,f), w=logRamp(f,TT_X0,TT_X1);
+  return w<=0 ? raw : (1-w)*raw + w*(interpFR(smoothedFR(meas),f) - trebleCorrAt(prof,f));
+}
+// The target as the treble fit aims for it: only its broad shape above ~6 kHz.
+function fitTgtAt(tgt,f){
+  const raw=interpFR(tgt,f), w=logRamp(f,TT_X0,TT_X1);
+  return w<=0 ? raw : (1-w)*raw + w*interpFR(smoothedFR(tgt),f);
+}
+function fitGridErr(prof){             // the correction the EQ should produce
   const meas=frCache.meas[curMeas].points, tgt=tgtRec().points;
   const fs=[], err=[];
-  for(let i=0;i<=FIT_N;i++){ const f=20*Math.pow(1000,i/FIT_N); fs.push(f); err.push(interpFR(tgt,f)-interpFR(meas,f)); }
+  for(let i=0;i<=FIT_N;i++){ const f=20*Math.pow(1000,i/FIT_N); fs.push(f);
+    err.push(prof ? fitTgtAt(tgt,f)-earMeasAt(meas,prof,f) : interpFR(tgt,f)-interpFR(meas,f)); }
   return {fs, err};
 }
 function respExcept(bands,k,fs){
@@ -900,13 +1149,13 @@ function respExcept(bands,k,fs){
 }
 function sharpPenalty(b){ return b.q>4 ? 0.0006*(b.q-4)*(b.q-4)*(b.gain*b.gain+1) : 0; }
 function fitLoss(bandK, others, fs, err){
-  const lo=fitLo, hi=fitHi;
+  const lo=fitLo, hi=fitHi, avgAbove=fitAvgAbove;
   let se=0, cnt=0, mE=0, mC=0, hc=0, sp=0, sc=0;
   for(let i=0;i<fs.length;i++){
     const f=fs[i];
     const comb=others[i]+(bandK.gain?magDb(bandK,f):0);
     if(f<lo || f>hi){ sp+=comb*comb; sc++; }                 // outside the range: the EQ should leave it alone
-    else if(f>10000){ mE+=err[i]; mC+=comb; hc++; }          // above 10 kHz: average energy only
+    else if(f>avgAbove){ mE+=err[i]; mC+=comb; hc++; }       // up top: average energy only
     else { const d=err[i]-comb; se+=d*d; cnt++; }
   }
   let loss=cnt?se/cnt:0; if(hc){ const d=(mE-mC)/hc; loss+=d*d; } if(sc) loss+=SPILL_W*sp/sc;
@@ -921,26 +1170,55 @@ function optParam(bands,k,param,lo,hi,fs,err,logScale){
   const set=(v)=>{ if(param==='freq') b.freq=Math.round(clamp(v,lo,hi)); else if(param==='gain') b.gain=clamp(Math.round(v*10)/10,lo,hi); else b.q=clamp(Math.round(v*100)/100,lo,hi); };
   let a=logScale?Math.log(lo):lo, c=logScale?Math.log(hi):hi; const toV=(x)=>logScale?Math.exp(x):x;
   const ev=(x)=>{ set(toV(x)); return fitLoss(b,others,fs,err); };
+  // The loss is bumpy along frequency, so golden-section can settle in a worse dip than the one
+  // the band started in. Only move if it actually helps; otherwise a well-placed band gets
+  // thrown elsewhere and neighbours pile in to compensate (cancelling pairs).
+  const keep=b[param], before=fitLoss(b,others,fs,err);
   const gr=(Math.sqrt(5)-1)/2; let x1=c-gr*(c-a), x2=a+gr*(c-a), f1=ev(x1), f2=ev(x2);
   for(let it=0;it<16;it++){ if(f1<f2){ c=x2; x2=x1; f2=f1; x1=c-gr*(c-a); f1=ev(x1);} else { a=x1; x1=x2; f1=f2; x2=a+gr*(c-a); f2=ev(x2);} }
   set(toV((a+c)/2));
+  if(fitLoss(b,others,fs,err) > before) b[param]=keep;
 }
+// Two ways to spend the bands:
+//   'range'  — fit target vs raw measurement between the bounds, leave the rest flat.
+//   'treble' — fit the whole target with every band, through the treble correction above ~6 kHz.
+//              The profile covers detail up to its top band, so "average energy only" starts
+//              there instead of at 10 kHz.
 function autoFit(){
   if(!curMeas || !tgtRec()) return false;
-  const {fs, err}=fitGridErr();
+  const tm=fitCfg.mode==='treble', prof=tm ? activeTrebleProfile() : null;
+  if(tm && !prof) return 'noprofile';
+  const {fs, err}=fitGridErr(prof);
   const gMax=curGMax();
   const nB=clamp(Math.round(fitCfg.bands)||NB,1,NB);
-  let fLo=Math.max(LIM.fMin, fitCfg.fLow), fHi=Math.min(LIM.fMax, fitCfg.fHigh);
+  const top=Math.min(LIM.fMax, fitCfg.top||16000);          // whole-target mode: no bands, and no fitting, above this
+  let fLo=tm ? LIM.fMin : Math.max(LIM.fMin, fitCfg.fLow), fHi=tm ? top : Math.min(LIM.fMax, fitCfg.fHigh);
   if(fHi<=fLo){ fLo=LIM.fMin; fHi=LIM.fMax; }               // guard against a bad range
   fitLo=fLo; fitHi=fHi;
+  fitAvgAbove = tm ? Math.min(top, prof.bands[prof.bands.length-1][0]*1.06) : 10000;
   // matching-pursuit init: place each band on the biggest remaining error (within range), subtract, repeat.
   // The residual is reduced by the correction the spot *needs*, not by the gain-capped band, so a capped
-  // band can't leave a residual that drags every following band onto the same frequency. Above 10 kHz
-  // only the average matters (see fitLoss), so bands start at or below 10 kHz; refinement can still move them up.
+  // band can't leave a residual that drags every following band onto the same frequency. Above the
+  // average-energy threshold only the average matters (see fitLoss), so bands start at or below it;
+  // refinement can still move them up.
   const bands=[]; const resid=err.slice();
-  const initHi=(fLo<10000 && fHi>10000) ? 10000 : fHi;
+  const initHi=(fLo<fitAvgAbove && fHi>fitAvgAbove) ? fitAvgAbove : fHi;
+  // Whole-target mode spans the full range, where a narrow treble feature can out-peak a broad bass
+  // error that matters more, and the octave-limited refinement can't carry a band back down. There,
+  // each band starts where it removes the most squared error (true matching pursuit) rather than
+  // where the residual peaks. Range mode keeps the peak pick, which is what was checked against squig.
+  const inRange=fs.map(f=>f>=fLo && f<=fHi);
+  const atoms = tm ? fs.map(fc=>(fc<fLo||fc>initHi) ? null : fs.map(f=>magDb({freq:fc,gain:6,q:1.4,type:'PK'},f)/6)) : null;
   for(let k=0;k<nB;k++){
-    let bi=-1, bv=0; for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi) continue; if(Math.abs(resid[i])>Math.abs(bv)){ bv=resid[i]; bi=i; } }
+    let bi=-1, bv=0;
+    if(atoms){
+      let best=0;
+      for(let i=0;i<fs.length;i++){ const a=atoms[i]; if(!a) continue;
+        let ra=0, aa=0; for(let j=0;j<fs.length;j++){ if(!inRange[j]) continue; ra+=resid[j]*a[j]; aa+=a[j]*a[j]; }
+        if(aa && ra*ra/aa>best){ best=ra*ra/aa; bi=i; bv=ra/aa; } }
+    } else {
+      for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi) continue; if(Math.abs(resid[i])>Math.abs(bv)){ bv=resid[i]; bi=i; } }
+    }
     if(bi<0 || Math.abs(bv)<0.1) break;                       // nothing left worth a band
     const band={ freq:Math.round(clamp(fs[bi],fLo,fHi)), gain:clamp(Math.round(bv*10)/10,LIM.gMin,gMax), q:1.4, type:'PK' };
     bands.push(band);
@@ -995,6 +1273,405 @@ function importBackup(file){
 }
 function flashBackup(msg){ const el=$('backupMsg'); if(el){ el.textContent=msg; setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; }, 2600); } }
 
+// ---- treble listening test ----
+// Pink noise through the cable. Each trial plays one band on its own as a cue, a short gap,
+// then the full noise with a peaking filter of gain g at that band, and asks whether the band
+// sticks out. An up/down staircase per band homes in on the g where it just starts to: lower
+// where your ear already has a peak, higher where it has a dip. The overall offset (how much
+// boost anyone needs to notice a band) and tilt are removed afterwards; what's left are the
+// band-to-band differences, i.e. your ear's peaks and dips.
+const TT_CUE=1.2, TT_GAP=0.6, TT_FULL=5.0;     // seconds
+const TT_CUE_LVL=2.5, TT_MASTER=0.35;          // cue lifted ~8 dB so a lone band is easy to hear
+const TT_GMIN=-12, TT_GMAX=15;                 // staircase limits, dB
+let cableEq=null;     // the EQ last read from or written to the cable: what the test plays through
+let ttA=null;         // audio graph, built on first use
+let tt=null;          // running test
+let ttTimers=[];
+let ttLen='thorough';
+let ttMethod='noise'; // 'noise' (does a band stick out) or 'match' (louder / quieter)
+let ttResult=null;    // finished, not yet saved
+
+function makePink(ctx,secs){
+  // Paul Kellet's refined pink filter on white noise.
+  const n=Math.floor(ctx.sampleRate*secs), buf=ctx.createBuffer(1,n,ctx.sampleRate), d=buf.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(let i=0;i<n;i++){ const w=Math.random()*2-1;
+    b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759; b2=0.96900*b2+w*0.1538520;
+    b3=0.86650*b3+w*0.3104856; b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+    d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6=w*0.115926; }
+  return buf;
+}
+// One looping noise source feeds two paths, cue (bandpass) and full (peaking); trials only move
+// gains and filter settings, so nothing restarts and Web Audio handles the sample rate.
+function ttAudio(){
+  if(ttA) return ttA;
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const src=ctx.createBufferSource(); src.buffer=makePink(ctx,8); src.loop=true;
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+  const pk=ctx.createBiquadFilter(); pk.type='peaking';
+  const cueG=ctx.createGain(), fullG=ctx.createGain(), master=ctx.createGain();
+  cueG.gain.value=0; fullG.gain.value=0; master.gain.value=TT_MASTER;
+  src.connect(bp); bp.connect(cueG); cueG.connect(master);
+  src.connect(pk); pk.connect(fullG); fullG.connect(master);
+  master.connect(ctx.destination); src.start();
+  ttA={ctx,bp,pk,cueG,fullG}; return ttA;
+}
+function ttRamp(node,v,t){ node.gain.cancelScheduledValues(t); node.gain.setTargetAtTime(v,t,0.012); }
+function ttClearTimers(){ ttTimers.forEach(clearTimeout); ttTimers=[]; }
+function ttSilence(){ ttClearTimers(); if(!ttA) return; const t=ttA.ctx.currentTime; ttRamp(ttA.cueG,0,t); ttRamp(ttA.fullG,0,t); }
+function ttHalt(){   // closing the window or the modal: stop sound, drop any test in progress
+  ttSilence(); if(ttA) ttA.ctx.suspend().catch(()=>{});
+  tt=null; ttLevelOn=false; const lv=$('ttLevel'); if(lv) lv.textContent='▶ Level check';
+}
+
+// Level check: the full noise, no band, until clicked again.
+let ttLevelOn=false;
+function ttLevelToggle(){
+  const a=ttAudio(); a.ctx.resume();
+  ttLevelOn=!ttLevelOn; $('ttLevel').textContent = ttLevelOn ? '■ Stop' : '▶ Level check';
+  const t=a.ctx.currentTime;
+  a.pk.gain.setValueAtTime(0,t); ttRamp(a.cueG,0,t); ttRamp(a.fullG,ttLevelOn?1:0,t);
+}
+
+// Staircase: start step 3 dB, halve on every reversal down to 0.5 dB; done after 4 reversals or
+// 10 trials. Threshold = mean of the reversal points after the first.
+function ttStair(f,start){ return { f, g:start, step:3, dir:0, n:0, revs:[], done:false }; }
+function ttStairAnswer(s,heard){
+  const d = heard ? -1 : 1;
+  if(s.dir && d!==s.dir){ s.revs.push(s.g); s.step=Math.max(0.5, s.step/2); }
+  s.dir=d; s.n++;
+  s.g=clamp(s.g+d*s.step, TT_GMIN, TT_GMAX);
+  if(s.revs.length>=4 || s.n>=10) s.done=true;
+}
+function ttStairValue(s){
+  if(s.revs.length>=2){ const r=s.revs.slice(1); return r.reduce((a,b)=>a+b,0)/r.length; }
+  return s.revs.length ? (s.revs[0]+s.g)/2 : s.g;
+}
+// Robust line fit (Theil–Sen) in log-frequency. Robust so one real peak at the end of the range
+// doesn't get read as a tilt and smeared across the other bands.
+function ttDetrend(pts){
+  const xs=pts.map(p=>Math.log2(p[0])), ys=pts.map(p=>p[1]), sl=[];
+  for(let i=0;i<xs.length;i++) for(let j=i+1;j<xs.length;j++) sl.push((ys[j]-ys[i])/(xs[j]-xs[i]));
+  const med=(a)=>{ const s=a.slice().sort((p,q)=>p-q), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+  const b=sl.length?med(sl):0, a=med(ys.map((y,i)=>y-b*xs[i]));
+  return pts.map((p,i)=>[p[0], ys[i]-a-b*xs[i]]);
+}
+function shuffled(a){ const o=a.slice(); for(let i=o.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [o[i],o[j]]=[o[j],o[i]]; } return o; }
+
+function openTreble(){
+  // A measurement is only needed to save a profile; the result can always be applied to the EQ.
+  openModal('modalTreble'); ttView('setup'); renderTrebleSetup();
+}
+function ttView(v){ show('ttSetup',v==='setup'); show('ttRun',v==='run'); show('ttDone',v==='done'); }
+function sameEq(a,b){ return !!a && !!b && JSON.stringify(a.map(x=>[x.freq,x.gain,x.q,x.type]))===JSON.stringify(b.map(x=>[x.freq,x.gain,x.q,x.type])); }
+function renderTrebleSetup(){
+  const m=curMeas && frCache.meas[curMeas]; const tr=(m && m.treble)||{profiles:{}};
+  $('ttSub').textContent = m ? `Personal treble for "${curMeas}", above ~6 kHz.` : 'Personal treble above ~6 kHz. No measurement selected: results can be applied to the EQ, not saved.';
+  show('ttProfilesWrap', !!m);
+  $('ttApplySel').classList.toggle('off', !(tr.profiles||{})[tr.sel]);
+  const box=$('ttProfiles'); box.innerHTML='';
+  const names=Object.keys(tr.profiles||{});
+  if(!names.length) box.innerHTML='<div class="savedempty">None yet. Run a test to make one.</div>';
+  names.forEach(n=>{ const p=tr.profiles[n];
+    const row=document.createElement('div'); row.className='saved'+(n===tr.sel?' fr-cur':'');
+    row.innerHTML=`<span class="sname">${escHtml(n)}</span><span class="smeta">${escHtml(p.date||'')} · ${p.passes===2?'thorough':'quick'}</span><span class="sdel" title="Delete">✕</span>`;
+    row.onclick=()=>{ tr.sel=n; persistFrs(); renderTrebleSetup(); syncTrebleUI(); };
+    row.querySelector('.sdel').onclick=(e)=>{ e.stopPropagation(); delete tr.profiles[n]; if(tr.sel===n) tr.sel=Object.keys(tr.profiles)[0]||null; persistFrs(); renderTrebleSetup(); syncTrebleUI(); };
+    box.appendChild(row); });
+  document.querySelectorAll('#ttLen button').forEach(b=>{ b.classList.toggle('on', b.dataset.len===ttLen);
+    const mins = ttMethod==='match' ? {quick:2,thorough:4} : {quick:3,thorough:7};
+    b.textContent=`${b.dataset.len==='quick'?'Quick':'Thorough'} · ~${mins[b.dataset.len]} min`; });
+  document.querySelectorAll('#ttMethod button').forEach(b=>b.classList.toggle('on', b.dataset.method===ttMethod));
+  show('ttAboutNoise', ttMethod==='noise'); show('ttAboutMatch', ttMethod==='match');
+  // The test measures through whatever is on the cable, so it has to know what that is.
+  let warn='';
+  if(!cableEq) warn='Not sure what EQ is on the cable. Write your EQ first so the test knows what it is playing through.';
+  else if(!sameEq(cableEq,model)) warn='The EQ on screen is not what is on the cable. The test plays through the cable\'s EQ, so write first if you meant to test with this one.';
+  else if(cableEq.some(b=>b.gain && b.freq>5000 && b.type==='PK' && Math.abs(b.gain)>=1)) warn='The cable EQ has bands above 5 kHz. That works, but the result is cleanest with the treble left flat.';
+  $('ttWarn').textContent=warn; $('ttWarn').classList.remove('ok');
+  show('ttWrite', !!cable && !sameEq(cableEq,model));
+}
+
+// Which method a profile came from, and the label it is saved under (a tip can have one of each).
+const TT_METHOD_LABEL={ noise:'stands out', match:'loudness' };
+function ttProfileName(tip,method){ return `${tip} · ${TT_METHOD_LABEL[method]}`; }
+
+// Loudness matching: two bursts of band-limited pink noise, the first (reference) at 0 dB and the
+// second at d. "Second louder" lowers d, "quieter" raises it, "same" ends the pair. The step
+// starts at 2 dB and halves on each reversal; d is then the level the second band needed to
+// sound as loud as the first.
+const TT_BURST=0.55, TT_BURST_GAP=0.3, TT_MQ=4.32;   // seconds; Q 4.32 = a third of an octave
+function ttPair(i,j){ // random which band is the reference, so order can't bias one side
+  const [r,v]=Math.random()<0.5?[i,j]:[j,i];
+  return { ref:r, vari:v, d:0, step:2, dir:0, n:0, revs:[], eq:false, done:false };
+}
+function ttPairAnswer(s,ans){
+  s.n++;
+  if(ans==='equal'){ s.eq=true; s.done=true; return; }
+  const d = ans==='louder' ? -1 : 1;
+  if(s.dir && d!==s.dir){ s.revs.push(s.d); s.step=Math.max(0.5, s.step/2); }
+  s.dir=d; s.d=clamp(s.d+d*s.step, -12, 12);
+  if(s.revs.length>=4 || s.n>=10) s.done=true;
+}
+function ttPairValue(s){
+  if(s.eq) return s.d;
+  if(s.revs.length>=2){ const r=s.revs.slice(1); return r.reduce((a,b)=>a+b,0)/r.length; }
+  return s.revs.length ? (s.revs[0]+s.d)/2 : s.d;
+}
+// Each pair says corr[vari] - corr[ref] = d. Solve all of them at once by least squares (plus
+// sum = 0 to pin the level), so one shaky comparison is outvoted instead of carried along.
+function ttSolvePairs(pairs,n){
+  const M=Array.from({length:n},()=>new Array(n).fill(0)), v=new Array(n).fill(0);
+  const add=(row,val)=>{ for(let i=0;i<n;i++){ if(!row[i]) continue; v[i]+=row[i]*val; for(let j=0;j<n;j++) M[i][j]+=row[i]*row[j]; } };
+  for(const [r,x,d] of pairs){ const row=new Array(n).fill(0); row[x]=1; row[r]=-1; add(row,d); }
+  add(new Array(n).fill(1),0);
+  for(let c=0;c<n;c++){   // Gaussian elimination with partial pivoting
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    [M[c],M[p]]=[M[p],M[c]]; [v[c],v[p]]=[v[p],v[c]];
+    for(let r=0;r<n;r++){ if(r===c||!M[c][c]) continue; const k=M[r][c]/M[c][c]; for(let j=c;j<n;j++) M[r][j]-=k*M[c][j]; v[r]-=k*v[c]; }
+  }
+  const x=v.map((val,i)=>M[i][i]?val/M[i][i]:0);
+  const res=pairs.map(([r,xi,d])=>d-(x[xi]-x[r]));
+  return { x, rms: Math.sqrt(res.reduce((a,e)=>a+e*e,0)/Math.max(1,res.length)) };
+}
+
+function ttStart(){
+  const tip=$('ttTip').value.trim();
+  if(!tip){ $('ttTip').focus(); $('ttWarn').textContent='Name the tip you are using, so the profile can be kept per tip.'; return; }
+  if(ttLevelOn) ttLevelToggle();
+  const eqDuring=(cableEq||model).map(b=>({...b}));
+  const thorough=ttLen==='thorough', n=TT_BANDS.length;
+  let passes;
+  if(ttMethod==='match'){
+    const adj=Array.from({length:n-1},(_,i)=>ttPair(i,i+1));          // neighbours
+    const skip=Array.from({length:n-2},(_,i)=>ttPair(i,i+2));         // one apart, as a cross-check
+    passes = thorough ? [adj, skip] : [adj];
+  } else {
+    passes = thorough
+      ? [TT_BANDS.map(f=>ttStair(f,-3)), TT_BANDS.map(f=>ttStair(f,9))]   // from below, then from above
+      : [TT_BANDS.map(f=>ttStair(f,3))];
+  }
+  tt={ tip, method:ttMethod, passes, pass:0, cur:null, last:null, eqDuring, paused:false, asking:false, waitReseat:false, undo:[] };
+  ttView('run'); show('ttReseat',false); ttShowAnswers(true);
+  const m=ttMethod==='match';
+  $('ttKeys').textContent = m ? 'Keys are on the buttons · enter plays both again' : 'Keys are on the buttons';
+  show('ttFirst',m); show('ttSecond',m); show('ttReplay',!m);
+  $('ttPause').textContent = m ? 'Pause · P' : 'Pause · space';
+  ttUndoSync();
+  ttNext();
+}
+function ttShowAnswers(on){ const m=tt && tt.method==='match'; show('ttAnswers', on && !m); show('ttAnswersM', on && m); }
+function ttProgress(){
+  let done=0,tot=0; for(const p of tt.passes) for(const s of p){ tot+=10; done += s.done ? 10 : Math.min(9,s.n); }
+  $('ttProg').style.width=(100*done/tot).toFixed(1)+'%';
+}
+function ttNext(){
+  if(!tt) return;
+  ttProgress();
+  let open=tt.passes[tt.pass].filter(s=>!s.done);
+  if(!open.length){
+    if(tt.pass+1<tt.passes.length){ tt.pass++; tt.waitReseat=true; tt.asking=false; ttSilence();
+      ttShowAnswers(false); show('ttReseat',true); $('ttFreq').textContent='—'; $('ttPhase').textContent=''; $('ttPhase').className='tt-phase'; $('ttCount').textContent='';
+      return; }
+    return ttFinish();
+  }
+  // random order, but not the same item twice running when there's a choice
+  const pick=shuffled(open).find(s=>s!==tt.last) || open[0];
+  tt.cur=pick; tt.last=pick;
+  ttPlay();
+}
+// One burst of a loudness pair: 'first' is the reference at 0 dB, 'second' the variable at d.
+function ttBurst(a,s,which,t){
+  const f=TT_BANDS[which==='first'?s.ref:s.vari], lvl=TT_CUE_LVL*(which==='first'?1:Math.pow(10,s.d/20));
+  a.bp.Q.setValueAtTime(TT_MQ,t-0.04); a.bp.frequency.setValueAtTime(f,t-0.04);
+  ttRamp(a.cueG,lvl,t); ttRamp(a.cueG,0,t+TT_BURST);
+}
+function ttFullOff(a,t){ ttRamp(a.fullG,0,t); ttRamp(a.cueG,0,t-0.04); }
+// only: undefined = the whole trial, or 'first' / 'second' to hear one burst of a pair again
+function ttPlay(only){
+  if(!tt || !tt.cur) return;
+  ttClearTimers();
+  const a=ttAudio(); a.ctx.resume();
+  const s=tt.cur, t=a.ctx.currentTime+0.05;
+  tt.asking=false; ttAnswerBtns(false); ttUndoSync();
+  $('ttCount').textContent = tt.passes.length>1 ? `Pass ${tt.pass+1} of 2` : 'Quick test';
+  $('ttPhase').className='tt-phase';
+  const ask=(at,text)=>ttTimers.push(setTimeout(()=>{ if(!tt) return; tt.asking=true; ttAnswerBtns(true);
+    $('ttPhase').textContent=text; $('ttPhase').className='tt-phase ask'; }, at*1000+50));
+  if(tt.method==='match'){
+    const kHz=(f)=>(f/1000).toFixed(1);
+    $('ttFreq').textContent=`${kHz(TT_BANDS[s.ref])} → ${kHz(TT_BANDS[s.vari])} kHz`;
+    const t2=t+TT_BURST+TT_BURST_GAP;
+    ttFullOff(a,t);
+    if(only!=='second'){ ttBurst(a,s,'first',t); $('ttPhase').textContent='First…'; }
+    if(only!=='first'){ const at=only==='second'?t:t2; ttBurst(a,s,'second',at);
+      if(only==='second') $('ttPhase').textContent='…second';
+      else ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent='…second'; }, (TT_BURST+TT_BURST_GAP)*1000+50)); }
+    ask(only ? TT_BURST : 2*TT_BURST+TT_BURST_GAP, 'Was the second quieter, the same, or louder?');
+    return;
+  }
+  $('ttFreq').textContent = (s.f/1000).toFixed(1)+' kHz';
+  $('ttPhase').textContent='Listen: the band on its own';
+  for(const p of [a.bp,a.pk]){ p.frequency.setValueAtTime(s.f,t); p.Q.setValueAtTime(TT_Q,t); }
+  a.pk.gain.setValueAtTime(s.g,t);
+  ttRamp(a.fullG,0,t); ttRamp(a.cueG,TT_CUE_LVL,t); ttRamp(a.cueG,0,t+TT_CUE);
+  ttRamp(a.fullG,1,t+TT_CUE+TT_GAP); ttRamp(a.fullG,0,t+TT_CUE+TT_GAP+TT_FULL);
+  ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent=''; }, (TT_CUE)*1000+50));
+  ask(TT_CUE+TT_GAP, 'Does that band stick out of the noise?');
+}
+function ttAnswerBtns(on){ ['ttYes','ttNo','ttQuieter','ttEqual','ttLouder'].forEach(id=>{ $(id).disabled=!on; }); }
+// ans: true / false for "sticks out", or 'louder' / 'quieter' / 'equal' for matching
+function ttAnswer(ans){
+  if(!tt || !tt.asking || tt.paused) return;
+  if((tt.method==='match') !== (typeof ans==='string')) return;   // key meant for the other method
+  tt.asking=false; ttAnswerBtns(false); ttSilence();
+  tt.undo.push({ item:tt.cur, state:JSON.parse(JSON.stringify(tt.cur)), pass:tt.pass });
+  if(tt.method==='match') ttPairAnswer(tt.cur, ans); else ttStairAnswer(tt.cur, ans);
+  ttUndoSync();
+  $('ttPhase').textContent=''; $('ttPhase').className='tt-phase';
+  ttTimers.push(setTimeout(ttNext, tt.method==='match' ? 450 : 700));   // a moment of silence between trials
+}
+function ttReplay(only){ if(tt && !tt.paused && !tt.waitReseat) ttPlay(only); }
+// Takes back the last answer and plays that trial again, even across the re-seat break.
+function ttUndo(){
+  if(!tt || tt.paused || !tt.undo.length) return;
+  const u=tt.undo.pop();
+  for(const k of Object.keys(u.item)) delete u.item[k];
+  Object.assign(u.item, u.state);
+  tt.pass=u.pass; tt.cur=u.item; tt.last=u.item;
+  if(tt.waitReseat){ tt.waitReseat=false; show('ttReseat',false); ttShowAnswers(true); }
+  ttProgress(); ttPlay();
+}
+function ttUndoSync(){ const b=$('ttUndo'); if(b) b.disabled=!tt || !tt.undo || !tt.undo.length; }
+function ttPauseToggle(){
+  if(!tt || tt.waitReseat) return;
+  tt.paused=!tt.paused; $('ttPause').textContent = tt.paused ? 'Resume' : 'Pause';
+  if(tt.paused){ tt.asking=false; ttSilence(); ttAnswerBtns(false); $('ttPhase').textContent='Paused'; $('ttPhase').className='tt-phase'; }
+  else ttPlay();
+}
+function ttContinue(){ if(!tt) return; tt.waitReseat=false; show('ttReseat',false); ttShowAnswers(true); ttNext(); }
+function ttStop(){ ttHalt(); ttView('setup'); renderTrebleSetup(); }
+function ttFinish(){
+  ttSilence();
+  const n=TT_BANDS.length;
+  // per-band raw values (dB the EQ should add, up to an unknown offset), plus a reliability note
+  let raw, extra={}, warn='';
+  if(tt.method==='match'){
+    const pairs=tt.passes.flat().map(s=>[s.ref, s.vari, ttPairValue(s)]);
+    const {x,rms}=ttSolvePairs(pairs,n);
+    raw=x; extra.pairs=pairs.map(([r,v,d])=>[TT_BANDS[r],TT_BANDS[v],Math.round(d*10)/10]);
+    // With the cross-check pass the comparisons over-determine the answer, so their disagreement
+    // says how consistent the listening was.
+    if(tt.passes.length>1 && rms>2) warn=`Your comparisons disagreed with each other by about ${rms.toFixed(1)} dB on average. Consider running it again.`;
+  } else {
+    // threshold per band, averaged over passes; a lower threshold means a peak, so the EQ should cut
+    const thr=TT_BANDS.map((f,i)=>{ const v=tt.passes.map(p=>ttStairValue(p[i])); return v.reduce((a,b)=>a+b,0)/v.length; });
+    raw=thr; extra.thresholds=thr.map((g,i)=>[TT_BANDS[i],Math.round(g*10)/10]);
+    // How far apart the two passes landed, as a rough reliability check.
+    const spread = tt.passes.length>1 ? Math.max(...TT_BANDS.map((_,i)=>Math.abs(ttStairValue(tt.passes[0][i])-ttStairValue(tt.passes[1][i])))) : 0;
+    if(spread>4) warn=`The two passes differed by up to ${spread.toFixed(1)} dB at one band. Fit or concentration may have changed between them; consider running it again.`;
+  }
+  // Add back the cable EQ that was playing: the profile describes the bare IEM in your ear, so
+  // it stays valid whatever EQ ends up on the cable.
+  const eqAt=(f)=>{ let s=0; for(const b of tt.eqDuring) if(b.gain) s+=magDb(b,f); return s; };
+  const bands=ttDetrend(TT_BANDS.map((f,i)=>[f, raw[i]+eqAt(f)])).map(([f,c])=>[f, Math.round(clamp(c,-9,6)*10)/10]);
+  ttResult={ tip:ttProfileName(tt.tip,tt.method), method:tt.method, bands, passes:tt.passes.length, ...extra,
+             eqDuring:tt.eqDuring, date:new Date().toISOString().slice(0,10) };
+  tt=null;
+  const box=$('ttRes'); box.innerHTML='';
+  bands.forEach(([f,c])=>{ const d=document.createElement('div');
+    d.innerHTML=`<span>${(f/1000).toFixed(1)}k</span><b style="color:${c>0?'var(--pos)':c<0?'var(--accent)':'var(--faint)'}">${c>0?'+':''}${c.toFixed(1)}</b>`; box.appendChild(d); });
+  $('ttSaveName').textContent=ttResult.tip;
+  $('ttDoneWarn').textContent=warn; $('ttDoneWarn').classList.remove('ok');
+  const canSave=!!(curMeas && frCache.meas[curMeas]); $('ttSave').disabled=!canSave;
+  $('ttSave').title = canSave ? '' : 'Pick a measurement to save profiles. You can still apply this result to the EQ.';
+  ttView('done');
+}
+function ttSave(){
+  if(!ttResult || !curMeas || !frCache.meas[curMeas]) return;
+  const m=frCache.meas[curMeas]; m.treble=m.treble||{profiles:{}, sel:null};
+  const {tip,...rest}=ttResult; m.treble.profiles[tip]=rest; m.treble.sel=tip;
+  ttResult=null; trebleView=true; saveTrebleView();
+  persistFrs(); syncTrebleUI(); ttView('setup'); renderTrebleSetup();
+  if(graphMode==='fr') drawGraph();
+  $('ttWarn').textContent='';
+}
+// ---- apply a result straight to the EQ (what the SoundEQ site does) ----
+// Turns a result into treble bands in the EQ's flat slots, leaving the other bands alone. The
+// profile describes the bare IEM, so what the current EQ already does up there is taken off
+// first: applying twice doesn't double up.
+// The test only knows 7 points, so the fit is to those points, not to a curve drawn between
+// them: one filter at each of the biggest corrections (up to 4), free to shift a twelfth of an
+// octave, gains and widths solved together so overlapping filters don't add up. Two fixed
+// points at 4 and 5 kHz keep the filters from leaking into what the measurement fit covers.
+const TT_APPLY_MAX=4, TT_APPLY_QMAX=6;   // Q 6 ≈ quarter octave; narrower would chase insertion depth
+function applyTrebleToEq(prof){
+  if(!prof) return { ok:false, msg:'No result to apply.' };
+  const free=model.map((b,i)=>b.gain?-1:i).filter(i=>i>=0);
+  if(!free.length) return { ok:false, msg:'Every band is in use. Flatten some (or auto-fit with fewer bands) to leave room for the treble.' };
+  const need=ttDetrend(prof.bands.map(([f,c])=>[f, c-combinedAt(f)])).map(p=>p[1]);   // still to add, local shape only
+  const top=Math.min(LIM.fMax, fitCfg.top||16000), step=Math.pow(2,1/12);
+  const fs=[4000,5000,...TT_BANDS], err=[0,0,...need];
+  fitLo=0; fitHi=Infinity; fitAvgAbove=Infinity;    // plain squared error at the points
+  const gMax=curGMax();
+  const bands=need.map((v,i)=>({ v, f:TT_BANDS[i] }))
+    .filter(c=>Math.abs(c.v)>=1.5 && c.f<=top*step)     // smaller is within the test's own precision
+    .sort((x,y)=>Math.abs(y.v)-Math.abs(x.v)).slice(0, Math.min(free.length, TT_APPLY_MAX))
+    .map(c=>({ freq:c.f, gain:clamp(Math.round(c.v*10)/10,LIM.gMin,gMax), q:4, type:'PK', home:c.f }));
+  for(let round=0;round<10;round++) for(let k=0;k<bands.length;k++){
+    const h=bands[k].home;
+    optParam(bands,k,'gain',LIM.gMin,gMax,fs,err);
+    optParam(bands,k,'q',Math.max(LIM.qMin,1),Math.min(LIM.qMax,TT_APPLY_QMAX),fs,err);
+    optParam(bands,k,'freq',h/step,Math.min(top,h*step),fs,err,true);
+  }
+  const keep=bands.filter(b=>Math.abs(b.gain)>=0.5).map(({home,...b})=>b).sort((x,y)=>x.freq-y.freq);
+  if(!keep.length) return { ok:true, msg:'Nothing to add: the current EQ already matches this result in the treble.' };
+  pushUndo();
+  keep.forEach((b,k)=>{ model[free[k]]=b; });
+  const {p}=peak(); if(p+preamp>0) preamp=-(Math.ceil(p*10)/10);   // keep headroom
+  renderAll();
+  const left=free.length-keep.length;
+  return { ok:true, msg:`Added ${keep.length} treble band${keep.length>1?'s':''}${left?` (${left} still flat)`:''}. Write to the cable to hear it.` };
+}
+function saveTrebleView(){ try{ localStorage.setItem('dsp-treble-view', trebleView?'1':'0'); }catch(e){} }
+function loadTrebleView(){ try{ trebleView = localStorage.getItem('dsp-treble-view')!=='0'; }catch(e){} }
+// The TREBLE toggle sits beside EQ / FR and only appears in the FR view when there's a profile.
+function syncTrebleUI(){
+  const has=!!activeTrebleProfile(), vis=has && graphMode==='fr';
+  show('trebleView',vis); show('trebleSep',vis);
+  $('trebleView').classList.toggle('on', trebleView);
+  syncFitCfgUI(); syncTrebleStep();
+  if(graphMode==='fr') drawGraph();
+}
+// Step 03: which profile is in play for this measurement.
+function syncTrebleStep(){
+  const el=$('trebleProf'); if(!el) return;
+  const m=curMeas && frCache.meas[curMeas], t=m && m.treble, p=t && t.profiles && t.profiles[t.sel];
+  el.innerHTML = p ? `<b>${escHtml(t.sel)}</b><span class="muted"> · ${escHtml(p.date||'')}</span>`
+                   : `<span class="muted">${m ? 'No profile for this IEM yet' : 'No measurement selected'}</span>`;
+  $('trebleApply').disabled=!p;
+}
+function ttKey(e){
+  if($('modalTreble').classList.contains('hidden') || !tt) return;
+  if(e.target && e.target.tagName==='INPUT') return;
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  // Same layout as the SoundEQ site: arrows answer, R / V replay, space is "same" when matching
+  // and pause when listening for a band. Backspace undoes the last answer.
+  const m=tt.method==='match', k=e.key.length===1 ? e.key.toLowerCase() : e.key;
+  const act =
+      k==='ArrowLeft'  ? ()=>ttAnswer(m?'quieter':false)
+    : k==='ArrowRight' ? ()=>ttAnswer(m?'louder':true)
+    : k===' '          ? (m ? ()=>ttAnswer('equal') : ttPauseToggle)
+    : k==='ArrowDown' && m ? ()=>ttAnswer('equal')
+    : k==='r'          ? ()=>ttReplay(m?'first':undefined)
+    : k==='v' && m     ? ()=>ttReplay('second')
+    : k==='Enter' && m ? ()=>ttReplay()
+    : k==='p'          ? ttPauseToggle
+    : k==='Backspace'  ? ttUndo
+    : null;
+  if(act){ e.preventDefault(); act(); }
+}
+
 // ---- graph nodes (draggable, layered over the canvas) ----
 let nodeEls=[];
 function renderNodes(){
@@ -1026,7 +1703,7 @@ function nodeHandler(i, el){
       if(first){ pushUndo(); first=false; }
       model[i].freq = clamp(xToF(px), LIM.fMin, LIM.fMax);
       model[i].gain = clamp(Math.round(((1-py)*DB_SPAN+DB_MIN)*10)/10, LIM.gMin, curGMax());
-      updateReadout(i); syncSliders(i); positionNodes(); drawGraph(); updateClip();
+      updateReadout(i); positionNodes(); drawGraph(); updateClip();
     };
     const move=(ev)=>apply(ev);
     const up=()=>{ el.classList.remove('grabbing'); window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
@@ -1036,57 +1713,79 @@ function nodeHandler(i, el){
 }
 
 // ---- band rows ----
-function fToSlider(f){ return Math.round(1000*Math.log10(f/LIM.fMin)/Math.log10(LIM.fMax/LIM.fMin)); }
-function sliderToF(v){ return Math.round(LIM.fMin*Math.pow(LIM.fMax/LIM.fMin, v/1000)); }
-function freqLabel(f){ return f>=1000 ? (f/1000).toFixed(f%1000?1:0)+' kHz' : f+' Hz'; }
+// Values are typed rather than dragged: a slider can't land on 8000 Hz or Q 0.71. Enter or
+// leaving the field commits, Escape reverts, Up/Down nudge (Shift for bigger steps).
+// Frequency takes "8000", "8k" or "8.5 kHz".
+function fmtField(k,v){ return k==='freq' ? String(Math.round(v)) : k==='gain' ? (v>0?'+':'')+v.toFixed(1) : v.toFixed(2); }
+function parseField(k,s){
+  s=String(s).trim().toLowerCase().replace(',','.').replace(/\s+/g,'');
+  if(k==='freq'){ const m=s.match(/^(\d*\.?\d+)(k|khz|hz)?$/); if(!m) return NaN; return parseFloat(m[1])*((m[2]==='k'||m[2]==='khz')?1000:1); }
+  const m=s.replace(/db$|^q/,'').match(/^[+-]?\d*\.?\d+$/); return m ? parseFloat(m[0]) : NaN;
+}
+function setField(b,k,v){
+  if(k==='freq') b.freq=Math.round(clamp(v,LIM.fMin,LIM.fMax));
+  else if(k==='gain') b.gain=clamp(Math.round(v*10)/10,LIM.gMin,curGMax());
+  else b.q=clamp(Math.round(v*100)/100,LIM.qMin,LIM.qMax);
+}
+function nudgeField(b,k,dir,big){
+  if(k==='freq') setField(b,k,b.freq*Math.pow(2,dir*(big?1/6:1/48)) + dir*0.5);   // +0.5 so tiny freqs still move
+  else if(k==='gain') setField(b,k,b.gain+dir*(big?1:0.1));
+  else setField(b,k,b.q+dir*(big?0.1:0.01));
+}
 let rowEls=[];
 function renderBands(){
   const box=$('bands'); box.innerHTML=''; rowEls=[];
+  const sc=$('barScale'); if(sc){ const g=gainScale(); sc.textContent=`−${g} · 0 · +${g}`; }
   model.forEach((b,i)=>{
-    const row=document.createElement('div'); row.className='band'; row.dataset.i=i;
+    const row=document.createElement('tr'); row.className='band'; row.dataset.i=i;
     row.innerHTML=
-      `<div class="chip">${i+1}</div>`+
-      `<div class="content">`+
-        `<div class="readout">`+
-          `<span class="rf"></span><span class="rg"></span>`+
-          `<span class="rq"></span><span class="rt" title="Click to change filter type"></span>`+
-        `</div>`+
-        `<div class="sliders">`+
-          `<input type="range" min="0" max="1000" data-k="freq">`+
-          `<input type="range" step="0.1" data-k="gain">`+
-          `<input type="range" min="${LIM.qMin}" max="${LIM.qMax}" step="0.1" data-k="q">`+
-        `</div>`+
-      `</div>`;
+      `<td><span class="chip">${i+1}</span></td>`+
+      `<td><button class="rt" title="Click to change filter type"></button></td>`+
+      `<td><input class="cell" data-k="freq" inputmode="decimal" spellcheck="false" aria-label="Band ${i+1} frequency" title="Frequency (Hz, or e.g. 8k)"></td>`+
+      `<td><input class="cell" data-k="gain" inputmode="decimal" spellcheck="false" aria-label="Band ${i+1} gain" title="Gain (dB)"></td>`+
+      `<td><input class="cell" data-k="q" inputmode="decimal" spellcheck="false" aria-label="Band ${i+1} Q" title="Q"></td>`+
+      `<td><div class="gbar" aria-hidden="true"><i></i><b></b></div></td>`;
     row.querySelector('.rt').onclick = ()=>{ pushUndo(); b.type=TYPE_CYCLE[(TYPE_CYCLE.indexOf(b.type)+1)%TYPE_CYCLE.length]; renderAll(); };
-    row.querySelectorAll('input[type=range]').forEach(inp=>{
-      inp.onpointerdown = pushUndo;
-      inp.oninput = ()=>{ const k=inp.dataset.k;
-        if(k==='freq') b.freq=sliderToF(+inp.value);
-        else if(k==='gain') b.gain=clamp(Math.round(+inp.value*10)/10,LIM.gMin,curGMax());
-        else b.q=clamp(Math.round(+inp.value*100)/100,LIM.qMin,LIM.qMax);
-        updateReadout(i); paintSlider(inp); positionNodes(); drawGraph(); updateClip();
+    row.querySelectorAll('input.cell').forEach(inp=>{
+      const k=inp.dataset.k; let undone=false;   // one undo step per visit to the field
+      const changed=()=>{ updateReadout(i, inp); positionNodes(); drawGraph(); updateClip(); };
+      const commit=()=>{ const v=parseField(k,inp.value);
+        if(!isFinite(v)){ inp.value=fmtField(k,b[k]); return; }
+        const before=b[k]; const probe={...b}; setField(probe,k,v);
+        if(probe[k]!==before){ if(!undone){ pushUndo(); undone=true; } b[k]=probe[k]; }
+        inp.value=fmtField(k,b[k]); changed();
+      };
+      inp.onfocus=()=>{ undone=false; requestAnimationFrame(()=>inp.select()); };
+      inp.onchange=commit;
+      inp.onblur=()=>{ commit(); undone=false; };
+      inp.onkeydown=(e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); commit(); inp.select(); }
+        else if(e.key==='Escape'){ e.stopPropagation(); inp.value=fmtField(k,b[k]); inp.blur(); }
+        else if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault();
+          if(!undone){ pushUndo(); undone=true; }
+          nudgeField(b,k,e.key==='ArrowUp'?1:-1,e.shiftKey); inp.value=fmtField(k,b[k]); changed(); }
       };
     });
     box.appendChild(row); rowEls.push(row);
-    updateReadout(i); syncSliders(i);
+    updateReadout(i);
   });
 }
-function updateReadout(i){
+// Refreshes a row from the model. `editing` is the field being typed in, which is left alone.
+function updateReadout(i, editing){
   const row=rowEls[i], b=model[i]; if(!row) return;
   row.classList.toggle('flat', !b.gain);
-  row.querySelector('.rf').textContent=freqLabel(b.freq);
-  const rg=row.querySelector('.rg'); rg.textContent=(b.gain>0?'+':'')+b.gain.toFixed(1);
-  rg.className='rg '+(b.gain===0?'zero':(b.gain>0?'pos':'cut'));
-  row.querySelector('.rq').textContent='Q '+b.q.toFixed(2);
+  const sign = b.gain===0?'zero':(b.gain>0?'pos':'cut');
+  row.querySelectorAll('input.cell').forEach(inp=>{
+    const k=inp.dataset.k;
+    if(inp!==editing && document.activeElement!==inp) inp.value=fmtField(k,b[k]);
+    if(k==='gain') inp.className='cell '+sign;
+  });
   row.querySelector('.rt').textContent=TYPE_LABEL[b.type]||'PK';
+  // gain bar, centred on 0 dB, scaled to the cable's gain range
+  const bar=row.querySelector('.gbar b'), w=Math.min(50, Math.abs(b.gain)/gainScale()*50);
+  bar.className=sign; bar.style.width=w+'%'; bar.style.left=(b.gain>=0?50:50-w)+'%';
 }
-function syncSliders(i){
-  const row=rowEls[i], b=model[i]; if(!row) return;
-  const f=row.querySelector('[data-k=freq]'), g=row.querySelector('[data-k=gain]'), q=row.querySelector('[data-k=q]');
-  f.value=fToSlider(b.freq); paintSlider(f);
-  g.min=LIM.gMin; g.max=curGMax(); g.value=clamp(b.gain,LIM.gMin,curGMax()); paintSlider(g);
-  q.value=b.q; paintSlider(q);
-}
+function gainScale(){ return Math.max(Math.abs(LIM.gMin), curGMax(), 1); }
 function renderAll(){ renderBands(); renderNodes(); syncHiGainUI(); refreshCurve(); }
 
 // ---- squig import / export ----
@@ -1167,7 +1866,7 @@ function renderSaved(){
     const row=document.createElement('div'); row.className='saved';
     row.innerHTML=`<span class="sname">${n}</span><span class="stag">built-in</span>`+
       `<span class="smeta">${nBands(bnds)} bands · 0.0</span>`;
-    row.onclick=()=>applyEq(bnds,0,'built-in "'+n+'"'); box.appendChild(row);
+    row.onclick=()=>{ applyEq(bnds,0,'built-in "'+n+'"'); closeModal(); }; box.appendChild(row);
   });
   const all=loadSaved(); const names=Object.keys(all);
   if(!names.length && !Object.keys(STARTING).length){ box.innerHTML='<div class="savedempty">No saved EQs yet.</div>'; return; }
@@ -1177,7 +1876,7 @@ function renderSaved(){
     row.innerHTML=`<span class="sname">${n}</span>`+
       `<span class="smeta">${nBands(bnds)} bands · ${pre.toFixed(1)}</span>`+
       `<span class="sdel" title="Delete">✕</span>`;
-    row.onclick=()=>applyEq(bnds,pre,'saved EQ "'+n+'"');
+    row.onclick=()=>{ applyEq(bnds,pre,'saved EQ "'+n+'"'); closeModal(); };
     row.querySelector('.sdel').onclick=(ev)=>{ ev.stopPropagation(); const o=loadSaved(); delete o[n]; storeSaved(o); renderSaved(); };
     box.appendChild(row);
   });
@@ -1188,11 +1887,10 @@ async function call(promise,label){ const r=await promise; if(!r||!r.ok){ log(`$
 function renderCable(info){
   applyCableCaps(info);
   $('devName').textContent=info.name;
-  const id=`${info.vid.toString(16)}:${info.pid.toString(16)}`;
-  $('statusText').textContent = info.firmware
-    ? `connected · ${id} · fw ${info.firmware}`
-    : `connected · ${id}`;
-  show('statusPill',true); show('disconnectBtn',true);
+  $('devId').textContent=`${info.vid.toString(16).toUpperCase().padStart(4,'0')}:${info.pid.toString(16).toUpperCase().padStart(4,'0')}`;
+  $('devBands').textContent = -info.gainMin===info.gainMax ? `${info.bands} · ±${info.gainMax} dB` : `${info.bands} · −${-info.gainMin} / +${info.gainMax} dB`;
+  $('statusText').textContent = info.firmware ? `connected · fw ${info.firmware}` : 'connected';
+  show('specs',true); show('topLinks',true); show('disconnectBtn',true);
   // Active-profile switching only applies to cables that have firmware voicings to switch
   // between — DUSK and MAY on gen-1, the FreeDSP Mini on gen-2.
   show('profCard', info.hasPresets===true);
@@ -1212,6 +1910,7 @@ async function readFromCable(){
   try{ const bands=await call(window.dsp.readBank(),'readBank');
     const mdl=bands.map((b,i)=> (b&&b.ok) ? {freq:b.freq,gain:roundGain(b.gain),q:b.q,type:TYPE_CYCLE.includes(b.type)?b.type:'PK'} : blankBand(defaultFreq(i)));
     pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain))); model=fillBands(mdl);
+    cableEq=model.map(b=>({...b}));
     log(`read ${bands.filter(b=>b&&b.ok).length} bands`); renderAll();
   }catch(e){ log('read failed: '+(e&&e.message||e)); showWriteNote('Could not read the EQ from the cable, see the log.'); }
 }
@@ -1264,6 +1963,7 @@ async function doWrite(){
     } else {
       log(`wrote ${r.acked}/54 frames; active=${r.active}`);
     }
+    cableEq=out.map(b=>({...b}));
     await refreshMode();
     btn.textContent='Written ✓'; setTimeout(()=>{btn.textContent='Write to cable';},1400);
   }catch(e){ const m=String(e.message||e);
@@ -1303,13 +2003,14 @@ async function openCable(d){
   }catch(e){ $('connectTitle').textContent='Error opening cable, see log'; }
 }
 async function disconnect(){ try{ await window.dsp.close(); }catch(e){}
-  cable=null; resetCableCaps(); clearWriteNote();
-  show('workspace',false); show('statusPill',false); show('disconnectBtn',false); show('deviceList',false);
-  $('devName').textContent='FreeDSP Studio'; show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
+  cable=null; cableEq=null; resetCableCaps(); clearWriteNote(); closeModal();
+  show('workspace',false); show('specs',false); show('topLinks',false); show('disconnectBtn',false); show('deviceList',false);
+  show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
 
 // ---- modals ----
-function openModal(id){ show('overlay',true); ['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalFitCfg'].forEach(m=>show(m, m===id)); }
-function closeModal(){ show('overlay',false); ['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalFitCfg'].forEach(m=>show(m,false)); }
+const MODALS=['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalSaved','modalTreble'];
+function openModal(id){ if(id!=='modalTreble') ttHalt(); show('overlay',true); MODALS.forEach(m=>show(m, m===id)); }
+function closeModal(){ ttHalt(); ttResult=null; show('overlay',false); MODALS.forEach(m=>show(m,false)); }
 function flashLink(el,txt){ const o=el.textContent; el.textContent=txt; setTimeout(()=>{el.textContent=o;},1100); }
 
 // ---- theme ----
@@ -1344,7 +2045,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('flatBtn').onclick=()=>{ pushUndo(); model=blankModel(); preamp=0; renderAll(); };
   $('undoBtn').onclick=undo;
   // preamp
-  $('preampSlider').onpointerdown=pushUndo; $('preampSlider').oninput=(e)=>setPreamp(+e.target.value);
+  $('preampVal').onfocus=(e)=>requestAnimationFrame(()=>e.target.select());
+  $('preampVal').onchange=$('preampVal').onblur=(e)=>{ const v=parseField('gain',e.target.value);
+    if(isFinite(v) && Math.round(clamp(v,-20,0)*10)/10!==preamp){ pushUndo(); setPreamp(v); } e.target.value=preamp.toFixed(1); };
+  $('preampVal').onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); } else if(e.key==='Escape'){ e.stopPropagation(); e.target.value=preamp.toFixed(1); e.target.blur(); } };
   $('autoPreampBtn').onclick=()=>{ pushUndo(); const {p}=peak(); setPreamp(p>0? -(Math.ceil(p*10)/10) : 0); };
   $('hiGainBtn').onclick=()=>{ pushUndo(); hiGain=!hiGain; if(!hiGain) model.forEach(b=>{ if(b.gain>LIM.gMax) b.gain=LIM.gMax; }); renderAll(); };
   // saved
@@ -1373,13 +2077,41 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('frClear').onclick=()=>{ curMeas=null; curTgt=null; persistFrs(); renderFrLists(); setGraphMode('eq'); };
   $('frShow').onclick=()=>{ if(!curMeas){ $('frMsg').textContent='Import a measurement first.'; return; } closeModal(); setGraphMode('fr'); };
   $('autoFitBtn').onclick=()=>{ if(!curMeas || !tgtRec()){ openModal('modalFr'); $('frMsg').textContent='Pick a measurement and a target, then Auto-fit.'; return; }
-    autoFit(); setGraphMode('fr'); };
-  $('fitCfgBtn').onclick=()=>{ syncFitCfgUI(); openModal('modalFitCfg'); };
+    if(autoFit()==='noprofile'){ openTreble(); $('ttWarn').textContent='Auto-fit is set to "whole target + treble correction", which needs a treble profile for this measurement. Run the test, or switch the mode in Auto-fit settings.'; return; }
+    setGraphMode('fr'); };
   $('fitLow').onchange=()=>{ fitCfg.fLow=clamp(Math.round(+$('fitLow').value)||20,20,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitHigh').onchange=()=>{ fitCfg.fHigh=clamp(Math.round(+$('fitHigh').value)||20000,20,20000); saveFitCfg(); syncFitCfgUI(); };
-  $('fitBands').onchange=()=>{ fitCfg.bands=clamp(Math.round(+$('fitBands').value)||9,1,9); saveFitCfg(); syncFitCfgUI(); };
-  $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:9}; saveFitCfg(); syncFitCfgUI(); };
-  $('fitCfgDone').onclick=closeModal;
+  $('fitBands').onchange=()=>{ fitCfg.bands=clamp(Math.round(+$('fitBands').value)||NB,1,NB); saveFitCfg(); syncFitCfgUI(); };
+  $('fitTop').onchange=()=>{ fitCfg.top=clamp(Math.round(+$('fitTop').value)||16000,8000,20000); saveFitCfg(); syncFitCfgUI(); };
+  $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:NB,mode:'range',top:16000}; saveFitCfg(); syncFitCfgUI(); };
+  document.querySelectorAll('#fitMode input').forEach(r=>r.onchange=()=>{ fitCfg.mode=r.value; saveFitCfg(); syncFitCfgUI(); });
+  // treble listening test
+  $('trebleRun').onclick=openTreble; $('trebleChange').onclick=openTreble;
+  $('trebleApply').onclick=()=>{ const m=curMeas && frCache.meas[curMeas], t=m && m.treble, p=t && t.profiles && t.profiles[t.sel];
+    const r=applyTrebleToEq(p), el=$('trebleMsg'); el.textContent=r.msg; el.classList.toggle('ok', r.ok);
+    clearTimeout(el._t); el._t=setTimeout(()=>{ el.textContent=''; }, 6000); };
+  $('linkSaved').onclick=()=>{ renderSaved(); openModal('modalSaved'); $('saveName').focus(); };
+  $('trebleView').onclick=()=>{ trebleView=!trebleView; saveTrebleView(); syncTrebleUI(); };
+  document.querySelectorAll('#ttLen button').forEach(b=>b.onclick=()=>{ ttLen=b.dataset.len; renderTrebleSetup(); });
+  document.querySelectorAll('#ttMethod button').forEach(b=>b.onclick=()=>{ ttMethod=b.dataset.method; try{ localStorage.setItem('dsp-tt-method',ttMethod); }catch(e){} renderTrebleSetup(); });
+  try{ const mm=localStorage.getItem('dsp-tt-method'); if(mm==='match'||mm==='noise') ttMethod=mm; }catch(e){}
+  $('ttLevel').onclick=ttLevelToggle;
+  $('ttStart').onclick=ttStart;
+  $('ttWrite').onclick=async ()=>{
+    if(effPeak().eff>0.1){ $('ttWarn').textContent='This EQ would clip. Set the preamp (Auto headroom) and try again.'; return; }
+    await doWrite(); renderTrebleSetup(); };
+  // answer buttons drop focus, so Space can't "click" the last one pressed
+  const ttBtn=(id,fn)=>{ $(id).onclick=(e)=>{ e.currentTarget.blur(); fn(); }; };
+  ttBtn('ttYes',()=>ttAnswer(true)); ttBtn('ttNo',()=>ttAnswer(false));
+  ttBtn('ttQuieter',()=>ttAnswer('quieter')); ttBtn('ttEqual',()=>ttAnswer('equal')); ttBtn('ttLouder',()=>ttAnswer('louder'));
+  ttBtn('ttReplay',()=>ttReplay()); ttBtn('ttFirst',()=>ttReplay('first')); ttBtn('ttSecond',()=>ttReplay('second')); ttBtn('ttUndo',ttUndo); ttBtn('ttPause',ttPauseToggle); ttBtn('ttContinue',ttContinue); ttBtn('ttStop',ttStop);
+  $('ttSave').onclick=ttSave;
+  const ttNote=(id,r)=>{ const el=$(id); el.textContent=r.msg; el.classList.toggle('ok', r.ok); };
+  $('ttApply').onclick=()=>ttNote('ttDoneWarn', applyTrebleToEq(ttResult));
+  $('ttApplySel').onclick=()=>{ const m=curMeas && frCache.meas[curMeas], t=m && m.treble, prof=t && t.profiles && t.profiles[t.sel];
+    if(prof) ttNote('ttWarn', applyTrebleToEq(prof)); };
+  $('ttDiscard').onclick=()=>{ ttResult=null; ttView('setup'); renderTrebleSetup(); };
+  window.addEventListener('keydown',ttKey);
   // backup / restore
   $('backupExport').onclick=exportBackup;
   $('backupRestore').onclick=()=>$('backupFile').click();
@@ -1394,11 +2126,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
     doWrite(); };
   // modal close affordances
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);
-  $('overlay').onclick=(e)=>{ if(e.target===$('overlay')) closeModal(); };
-  window.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !$('overlay').classList.contains('hidden')) closeModal(); });
+  $('overlay').onclick=(e)=>{ if(e.target===$('overlay') && !tt && !ttResult) closeModal(); };   // a stray click mustn't end a test
+  window.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !$('overlay').classList.contains('hidden') && !tt) closeModal(); });   // Stop ends a test, not Escape
 
   initSaved();
   initFrs();
+  loadTrebleView();
   loadFitCfg();
   window.addEventListener('resize', drawGraph);
   detect();

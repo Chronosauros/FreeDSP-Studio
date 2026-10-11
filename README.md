@@ -55,13 +55,14 @@ Windows and macOS. The gen-1 HID transport is split per platform — Windows goe
 ## What it does
 
 - Detects the cable and pulls in whatever EQ is loaded on it
-- Parametric EQ — 9 bands on gen-1 cables, 8 on gen-2 — with the filter types and gain range each cable actually supports.... drag the numbered nodes straight on the graph, or use the sliders
+- Parametric EQ — 9 bands on gen-1 cables, 8 on gen-2 — with the filter types and gain range each cable actually supports.... drag the numbered nodes straight on the graph, or type exact values (`8k`, `-3.5`, `0.71`; arrow keys nudge)
 - Proper fractional-dB gain, not the whole numbers the stock app limits you to (see below)
 - A real preamp, with an auto headroom button and a clip check before every write
 - Switches the active firmware profile on the DUSK, MAY and FreeDSP Mini
 - squig.link / AutoEQ import and export (Equalizer APO parametric text)
 - Frequency-response view: load your IEM's measurement and a target, see the EQ'd result
-- Auto-fit the EQ to a target (based on AutoEq), with a configurable range and band count
+- Auto-fit the EQ to a target (based on AutoEq): either up to a frequency, leaving the rest of the bands free, or over the whole target using your treble correction
+- Treble listening test: a listening test through the cable that finds the peaks and dips your ear hears above ~6 kHz, where a 711 can't be trusted. Two methods: "stands out" (does a band poke out of pink noise?) and "louder / quieter" (match neighbouring bands by level). Saved per IEM, tip and method, reused with any target, and switchable on and off in the FR view
 - Saves your EQs as plain JSON files you can back up or share
 - Nothing touches the cable until you hit Write
 
