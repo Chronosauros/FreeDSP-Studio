@@ -128,6 +128,9 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.5.1
+- Auto-fit no longer puts two bands on top of each other (e.g. 7106 and 7120 Hz). The whole-target fit did this most, when a narrow treble feature was only half covered by the band placed on it; the range fit did it occasionally. Bands within a twelfth of an octave are now folded into one filter, and the whole-target fit re-places the freed band where the most error is left. On 32 test IEMs, stacked pairs went from 10 to 0 in each mode, with the whole-target fit slightly more accurate overall (0.325 to 0.312 dB RMS)
+
 ### 0.5.0
 - **Treble listening test.** A 711 coupler can't be trusted above about 6 kHz, and everyone's ears differ up there anyway, so the treble can now be set by ear through the cable. Two methods: *stands out* (does a band poke out of pink noise?) and *louder / quieter* (match neighbouring bands by level, solved together so small errors don't pile up). Quick or thorough, keyboard driven (arrows, space, R / V, Backspace to undo). Results are kept per IEM and tip
 - Use the result two ways: **Apply to EQ** turns it straight into treble bands in the EQ's flat slots (no measurement needed), or the **whole target + treble correction** auto-fit spends every band over the full range, using the smoothed rig level, the target's broad shape and your profile above ~6 kHz instead of the rig's treble detail, up to an upper limit you set. The FR view's TREBLE switch shows the measurement with and without the correction
