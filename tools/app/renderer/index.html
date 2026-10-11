@@ -932,12 +932,13 @@ function drawFR(ctx,W,H,css,x){
   const tgt = tgtRec() ? tgtRec().points : null;
   const prof = trebleView ? activeTrebleProfile() : null;      // ear-corrected view, when on and available
   const measAt = prof ? (f)=>earMeasAt(meas,prof,f) : (f)=>interpFR(meas,f);
+  const tgtAt = tgt ? (prof ? (f)=>fitTgtAt(tgt,f) : (f)=>interpFR(tgt,f)) : null;
   const eq1k=combinedAt(1000);
   const result=(f)=> measAt(f) + combinedAt(f) - eq1k;          // EQ'd, re-normalised at 1 kHz
   // auto y-range over the visible curves
   let lo=Infinity, hi=-Infinity;
   for(let px=0;px<=W;px+=4){ const f=20*Math.pow(1000,px/W);
-    const vs=[interpFR(meas,f), result(f)]; if(tgt) vs.push(interpFR(tgt,f));
+    const vs=[interpFR(meas,f), result(f)]; if(tgt) vs.push(tgtAt(f));
     for(const v of vs){ if(v<lo)lo=v; if(v>hi)hi=v; } }
   lo=Math.floor((lo-4)/5)*5; hi=Math.ceil((hi+4)/5)*5; if(hi-lo<20) hi=lo+20;
   const y=(db)=> H-((db-lo)/(hi-lo))*H;
@@ -953,7 +954,8 @@ function drawFR(ctx,W,H,css,x){
     ctx.globalAlpha=0.35; ctx.fillStyle=g; ctx.fillRect(x0,0,x1-x0,H); ctx.globalAlpha=1; }
   curve((f)=>interpFR(meas,f), band, 1.5, prof?[2,3]:null);  // raw measurement (dotted when corrected)
   if(prof) curve(measAt, ink, 1.5);                           // ear-corrected measurement
-  if(tgt) curve((f)=>interpFR(tgt,f), pos, 2, [6,4]);         // target (dashed)
+  if(tgt && prof) curve((f)=>interpFR(tgt,f), band, 1.25, [2,3]);   // raw target, for reference
+  if(tgt) curve(tgtAt, pos, 2, [6,4]);                              // target (dashed): broad above ~6 kHz when corrected
   curve(result, accent, 2.5);                                 // EQ'd result
   // legend
   ctx.font="10px 'IBM Plex Mono',monospace"; ctx.textBaseline='middle';
@@ -963,7 +965,7 @@ function drawFR(ctx,W,H,css,x){
     ctx.fillStyle=ink; ctx.fillText(label, lx+21, ly); lx += 21 + ctx.measureText(label).width + 16; };
   leg(prof?'rig':'measurement', band, prof?[2,3]:null);
   if(prof) leg(`ear-corrected · ${frCache.meas[curMeas].treble.sel}`, ink);
-  if(tgt) leg('target', pos, [6,4]); leg('with EQ', accent);
+  if(tgt) leg(prof?'target, broad above 6k':'target', pos, [6,4]); leg('with EQ', accent);
   ctx.textBaseline='alphabetic';
 }
 
@@ -1068,7 +1070,7 @@ function setGraphMode(m){
 const FIT_N = 180;
 const SPILL_W = 0.1;                    // weight of the "stay flat outside the fit range" term
 const STACK_OCT = 1/12;                 // two bands closer than this are one filter's job
-const PRUNE_DB = 0.15;                  // a band must improve the fit by at least this much (dB RMS) to keep its slot
+const PRUNE_DB = 0.02;                  // a band must improve the fit by at least this much (dB RMS) to keep its slot
 let fitLo = LIM.fMin, fitHi = LIM.fMax; // effective fit range for the current autoFit() run
 let fitAvgAbove = 10000;                // above this only average energy is matched (the treble profile moves it up)
 function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9, mode:o.mode==='treble'?'treble':'range', top:o.top||16000 }; }catch(e){} syncFitCfgUI(); }
@@ -1267,8 +1269,11 @@ function autoFit(){
       while(bands.length<nB){ const {bi,bv}=pick(leftover()); if(bi<0 || Math.abs(bv)<0.1) break; bands.push(startBand(bi,bv)); }
       refine(3);
     }
-    // drop bands the fit doesn't need (they stay flat for hand use): near-flat ones, then, one at a time,
-    // the band whose removal costs the least, as long as that cost is under PRUNE_DB
+    // drop bands that do nothing: near-flat ones, then, one at a time, the band whose removal costs the
+    // least, as long as that cost is under PRUNE_DB. Kept low on purpose: the error is averaged over the
+    // whole fit range, so a band fixing a real 1 dB wiggle only moves it a few hundredths of a dB, and a
+    // higher bar threw half the bands away (0.15 left ~4 of 8 in use for 20-40% more error). Spare
+    // bands for hand use are what the "Bands" count is for.
     for(let k=bands.length-1;k>=0;k--) if(Math.abs(bands[k].gain)<=0.1) bands.splice(k,1);
     while(bands.length>1){
       const base=Math.sqrt(fitLossAll(bands,fs,err)); let bk=-1, bc=Infinity;
@@ -1289,6 +1294,7 @@ function autoFit(){
   pushUndo();
   model=fillBands(bands);
   const {p}=peak(); preamp = p>0 ? -(Math.ceil(p*10)/10) : 0;   // headroom
+  if(tm && !trebleView){ trebleView=true; saveTrebleView(); syncTrebleUI(); }   // show it the way it was fitted
   renderAll();
   return true;
 }
