@@ -63,16 +63,34 @@
 
   .shell { display:flex; flex-direction:column; height:100vh; border-radius:14px; overflow:hidden; }
 
-  /* ---- Title strip (frameless drag region) ---- */
-  .titlebar { height:56px; flex:none; display:flex; align-items:center; gap:14px; padding:0 20px;
-    background:var(--header-bg); border-bottom:1px solid var(--line); -webkit-app-region:drag; }
+  /* ---- Header: a datasheet strip, and the frameless window's drag region ---- */
+  .titlebar { position:relative; flex:none; min-height:64px; display:flex; align-items:stretch; padding:0 24px;
+    -webkit-app-region:drag; }
+  .titlebar::after { content:''; position:absolute; left:24px; right:24px; bottom:0; height:2px; background:var(--ink-2); }
+  .brand { display:flex; align-items:center; gap:12px; padding:10px 22px 10px 0; border-right:1px solid var(--line); flex:none; }
+  .brand-name { display:block; font-weight:600; font-size:18px; line-height:1.15; letter-spacing:-.01em; }
+  .brand-sub { display:block; margin-top:5px; letter-spacing:.1em; }
+  .specs { flex:1; min-width:0; margin:0; display:flex; overflow:hidden; }
+  .specs > div { flex:none; padding:12px 18px; border-right:1px solid var(--line); }
+  .specs dd { margin:6px 0 0; font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .specs dd.mono { font-size:12.5px; font-weight:400; color:var(--ink-2); }
+  .status { display:flex; align-items:center; gap:7px; }
+  .status .dot { width:6px; height:6px; border-radius:50%; background:var(--ok-dot); flex:none; }
+  .status.warn { color:var(--warn) !important; } .status.warn .dot { background:var(--warn); }
+  .toplinks { display:flex; align-items:center; gap:16px; font:11px/1 'IBM Plex Mono',monospace; }
+  .toplinks a { color:var(--ink-2); cursor:pointer; transition:.12s; }
+  .toplinks a:hover { color:var(--accent); }
+  /* Narrow windows: drop the least useful header cells before anything wraps. */
+  @media (max-width:1400px){ .brand-sub { display:none; } }
+  @media (max-width:1300px){ #specId { display:none; } }
+  @media (max-width:1120px){ #specBands { display:none; } }
   .mark { width:28px; height:28px; border-radius:8px; overflow:hidden; flex:none; display:block; }
   .mark svg { width:100%; height:100%; display:block; }
   .readnote { display:flex; align-items:flex-start; gap:10px; margin-bottom:2px; padding:9px 12px; border-radius:9px;
     font:11.5px/1.45 'IBM Plex Mono',monospace; background:var(--chip-bg); color:var(--ink-2); border:1px solid var(--line); }
   .readnote .rn-x { margin-left:auto; cursor:pointer; color:var(--muted); flex:none; }
   .readnote .rn-x:hover { color:var(--accent); }
-  .gmode { position:absolute; top:10px; right:10px; display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); z-index:2; }
+  .gmode { display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); }
   .gmode button { border:0; cursor:pointer; padding:4px 10px; border-radius:6px; font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.06em; background:transparent; color:var(--muted); transition:.12s; }
   .gmode button.on { background:var(--card); color:var(--accent); }
   .fr-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -87,12 +105,7 @@
   .rigtoggle { display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); }
   .rigtoggle button { border:0; cursor:pointer; padding:6px 14px; border-radius:6px; font:600 11px/1 'IBM Plex Mono',monospace; background:transparent; color:var(--muted); transition:.12s; }
   .rigtoggle button.on { background:var(--accent); color:var(--accent-ink); }
-  .devname { font-size:15px; font-weight:600; letter-spacing:-.01em; }
-  .statuspill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px;
-    background:var(--chip-bg); color:var(--ink-2); font:11px/1 'IBM Plex Mono',monospace; }
-  .statuspill .dot { width:6px; height:6px; border-radius:50%; background:var(--ok-dot); }
-  .statuspill.warn { color:var(--warn); } .statuspill.warn .dot { background:var(--warn); }
-  .tb-right { margin-left:auto; display:flex; align-items:center; gap:10px; -webkit-app-region:no-drag; }
+  .tb-right { margin-left:auto; display:flex; align-items:center; gap:14px; padding-left:18px; -webkit-app-region:no-drag; }
   .themeswitch { display:flex; gap:2px; padding:3px; border-radius:8px; background:var(--chip-bg); }
   .themeswitch button { border:0; cursor:pointer; width:30px; height:24px; border-radius:6px; font-size:12px; line-height:1;
     background:transparent; color:var(--muted); transition:.12s; }
@@ -123,10 +136,39 @@
   .devicebtn:hover { border-color:var(--accent); }
   .devicebtn .muted { font-size:11px; }
 
-  /* workspace */
-  .workspace { flex:1; min-height:0; display:grid; grid-template-columns:1fr 312px; gap:16px; padding:16px 20px; }
-  .col-left { min-width:0; display:flex; flex-direction:column; gap:14px; }
-  .col-rail { display:flex; flex-direction:column; gap:12px; min-height:0; }
+  /* workspace: Fig. 1 + Table 1 on the left, the numbered workflow on the right */
+  .workspace { flex:1; min-height:0; display:flex; gap:0 28px; padding:0 24px; }
+  .ws-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; padding:14px 0 16px; }
+  .ws-rail { flex:0 0 300px; min-height:0; display:flex; flex-direction:column; gap:14px; padding:14px 0 16px; }
+  .rail-scroll { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:16px; }
+  .fighead { flex:none; display:flex; align-items:center; gap:14px; min-height:32px; margin-bottom:8px; }
+  .figtitle { font-size:14px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seclabel.ink2 { color:var(--ink-2); }
+  .grow { flex:1; }
+  .tablehead { margin:12px 0 4px; }
+  .tablehead .btn.sm { padding:6px 10px; }
+
+  /* rail steps */
+  .step-sec { display:flex; flex-direction:column; gap:10px; }
+  .step { margin:0; font:600 14px/1.2 'IBM Plex Sans',sans-serif; color:var(--ink); display:flex; gap:10px; align-items:baseline;
+    border-top:2px solid var(--ink-2); padding-top:9px; }
+  .step b { font:600 12px/1 'IBM Plex Mono',monospace; color:var(--accent); }
+  .step-write { flex:none; }
+  .kv { display:grid; grid-template-columns:64px minmax(0,1fr); gap:7px 10px; align-items:center; }
+  .kv.wide { grid-template-columns:minmax(0,1fr) 96px; }
+  .kvrow { display:contents; }
+  .kv input[type=number] { width:100%; height:32px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink);
+    padding:0 9px; font:12px/1 'IBM Plex Mono',monospace; text-align:right; user-select:text; }
+  .kv input[type=number]:focus { outline:none; border-color:var(--accent); }
+  .frsel { width:100%; min-width:0; height:32px; font:11.5px/1 'IBM Plex Mono',monospace; padding:0 8px; border-radius:8px; background:var(--card); border:1px solid var(--line); color:var(--ink-2); cursor:pointer; }
+  .frsel:hover { border-color:var(--accent); }
+  .steplink { align-self:flex-start; font:11px/1 'IBM Plex Mono',monospace; color:var(--muted); cursor:pointer; }
+  .steplink:hover { color:var(--accent); }
+  .step .steplink { margin-left:auto; font-weight:400; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .steprow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .tprof { font-size:13px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tprof b { font-weight:600; }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-flat); }
   .seclabel { font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; }
@@ -140,14 +182,12 @@
   .btn.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .btn.on:hover { color:var(--accent-ink); filter:brightness(1.05); }
   .btn.iconbtn { padding:5px 7px; display:inline-grid; place-items:center; }
-  .fitcfg { display:flex; flex-direction:column; gap:11px; }
-  .fitcfg-row { display:flex; align-items:center; gap:10px; }
-  .fitcfg-row label { flex:1; font-size:13px; color:var(--ink-2); }
-  .fitcfg-row input { width:96px; font:12px/1 'IBM Plex Mono',monospace; padding:8px 9px; border-radius:8px; background:var(--card); border:1px solid var(--line); color:var(--ink); }
-  .fitcfg-row input:focus { outline:none; border-color:var(--accent); }
-  .fitcfg-row .muted { font:11px/1 'IBM Plex Mono',monospace; width:28px; }
-  .fitmode { align-self:flex-start; }
+  .fitmode { border:0; padding:0; margin:0; display:flex; flex-direction:column; gap:7px; font-size:13px; color:var(--ink-2); }
+  .fitmode label { display:flex; gap:8px; align-items:center; cursor:pointer; }
+  .fitmode input { accent-color:var(--accent); margin:0; }
   .fitnote { font:11.5px/1.45 'IBM Plex Sans',sans-serif; color:var(--muted); }
+  .fitnote b { color:var(--ink-2); font-weight:600; }
+  .fitnote:empty { display:none; }
   .fitnote a { color:var(--accent); cursor:pointer; }
 
   /* treble listening test */
@@ -180,9 +220,9 @@
   .ttlink.off { color:var(--faint); cursor:default; }
   .tt-keys { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--faint); text-align:center; }
 
-  /* graph card */
-  .graphcard { position:relative; height:360px; flex:none; border-radius:14px; overflow:hidden;
-    cursor:crosshair; box-shadow:var(--shadow-card); }
+  /* Fig. 1 */
+  .graphcard { position:relative; flex:1; min-height:150px; border:1px solid var(--line); border-radius:10px; background:var(--card);
+    overflow:hidden; cursor:crosshair; }
   canvas#graph { position:absolute; inset:0; width:100%; height:100%; display:block; }
   .node { position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
     display:grid; place-items:center; font:600 10px/1 'IBM Plex Mono',monospace; cursor:grab; touch-action:none;
@@ -191,53 +231,36 @@
   .node.active { background:var(--accent); color:var(--accent-ink); }
   .node.grabbing { cursor:grabbing; }
 
-  /* band list card */
-  .bandcard { position:relative; flex:1; min-height:0; padding:14px 16px; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
-  .eqtext-btn { position:absolute; bottom:12px; right:14px; width:28px; height:28px; border-radius:8px; display:grid; place-items:center;
-    background:var(--btn-bg); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:.12s; z-index:2; box-shadow:var(--shadow-flat); }
-  .eqtext-btn:hover { border-color:var(--accent); color:var(--accent); }
-  .bandhead { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .bandhead-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; min-width:0; }
-  .fr-inline { display:flex; align-items:center; gap:6px; }
-  .rigtoggle.sm button { padding:4px 8px; font-size:10px; }
-  .frsel { font:11px/1 'IBM Plex Mono',monospace; padding:5px 6px; border-radius:7px; background:var(--btn-bg); border:1px solid var(--line); color:var(--ink-2); min-width:150px; max-width:210px; cursor:pointer; }
-  .frsel:hover { border-color:var(--accent); }
-  .headbtns { display:flex; gap:6px; }
-  .bandgrid { flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(5,auto); grid-auto-flow:column; gap:7px 14px; align-content:start; }
-  .band { display:grid; grid-template-columns:20px 1fr; gap:9px; align-items:center; padding:7px 9px; border-radius:9px; background:var(--row-bg); }
-  .band.flat { background:transparent; opacity:.45; }
+  /* Table 1: bands. Values are typed; arrow keys nudge, Shift for bigger steps. */
+  .bandwrap { flex:none; }   /* every band always visible: the graph gives up height instead */
+  .bandtable { width:100%; border-collapse:collapse; }
+  .bandtable th { position:sticky; top:0; background:var(--shell); font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); text-align:right; padding:6px 8px 7px; border-bottom:1px solid var(--grid-zero); }
+  .bandtable th:nth-child(-n+2) { text-align:left; }
+  .bandtable th:first-child { padding-left:0; width:30px; }
+  .bandtable th:nth-child(2) { width:58px; }
+  .bandtable th:last-child { text-align:center; width:32%; padding:6px 0 7px 16px; letter-spacing:.06em; }
+  .bandtable td { padding:2px 8px; border-bottom:1px solid var(--line); }
+  .bandtable td:first-child { padding-left:0; }
+  .bandtable td:last-child { padding:2px 0 2px 16px; }
   .band .chip { width:20px; height:20px; border-radius:6px; display:grid; place-items:center;
     font:600 10px/1 'IBM Plex Mono',monospace; background:var(--accent); color:var(--accent-ink); }
   .band.flat .chip { background:var(--node-dim); color:var(--node-dim-ink); }
-  .band .content { display:flex; align-items:center; gap:7px; min-width:0; }
-  .band .rt { font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; color:var(--ink-2); cursor:pointer; width:28px; text-align:right; flex:none; }
+  .band .rt { background:none; border:0; padding:0; min-height:26px; font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.08em;
+    color:var(--ink-2); cursor:pointer; }
   .band .rt:hover { color:var(--accent); }
-  /* typed band values: freq / gain / Q. Arrow keys nudge, Shift for bigger steps. */
-  .fld { flex:1; min-width:0; display:flex; align-items:center; gap:4px; padding:0 7px; border-radius:7px;
-    background:var(--card); border:1px solid var(--line); cursor:text; transition:border-color .12s; }
-  .fld:focus-within { border-color:var(--accent); }
-  .fld input { flex:1; min-width:0; width:100%; border:0; outline:none; background:transparent; padding:6px 0;
+  .cell { width:100%; min-width:56px; background:none; border:0; outline:none; padding:6px 0; text-align:right;
     font:500 12.5px/1 'IBM Plex Mono',monospace; color:var(--ink); user-select:text; }
-  .fld span { font:10px/1 'IBM Plex Mono',monospace; color:var(--faint); flex:none; }
-  .fld.f-freq { flex:1.25; }
-  .fld input.pos { color:var(--pos); } .fld input.cut { color:var(--accent); } .fld input.zero { color:var(--faint); }
-  .band.flat .fld { background:transparent; }
+  .cell:focus { box-shadow:inset 0 -2px 0 var(--accent); }
+  .cell.pos { color:var(--pos); } .cell.cut { color:var(--accent); } .cell.zero, .band.flat .cell { color:var(--faint); }
+  .gbar { position:relative; height:10px; }
+  .gbar i { position:absolute; left:50%; top:-4px; bottom:-4px; width:1px; background:var(--grid-zero); }
+  .gbar b { position:absolute; top:2px; height:6px; border-radius:2px; background:var(--faint); }
+  .gbar b.pos { background:var(--pos); } .gbar b.cut { background:var(--accent); }
 
-  /* sliders (band + preamp) */
-  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; background:transparent; cursor:pointer; height:12px; margin:0; }
-  input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:2px;
-    background:linear-gradient(to right, var(--accent) var(--pct,0%), var(--track) var(--pct,0%)); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:10px; height:10px; margin-top:-3px;
-    border-radius:50%; background:var(--card); border:2px solid var(--accent); }
-  input[type=range].preamp { height:16px; }
-  input[type=range].preamp::-webkit-slider-thumb { width:16px; height:16px; margin-top:-6px; box-shadow:var(--shadow-node); }
-
-  /* preamp card */
-  .preampcard { padding:14px; display:flex; flex-direction:column; gap:11px; }
+  /* preamp (step 04) */
   .row { display:flex; align-items:center; gap:9px; }
   .row.spread { justify-content:space-between; }
-  .row2 { display:flex; gap:7px; }
-  .row2 .btn { flex:1; }
   .preampval { display:flex; align-items:baseline; gap:4px; font:500 16px/1 'IBM Plex Mono',monospace; color:var(--ink); }
   .preampval input { width:62px; text-align:right; font:inherit; color:inherit; background:transparent; border:0; border-bottom:1px dashed var(--line);
     outline:none; padding:2px 0; user-select:text; }
@@ -247,8 +270,7 @@
   .clip.ok { background:var(--ok-bg); color:var(--pos); } .clip.ok .dot { background:var(--pos); }
   .clip.warn { background:var(--warn-bg); color:var(--warn); } .clip.warn .dot { background:var(--warn); }
 
-  /* active profile card */
-  .profcard { padding:14px; display:flex; flex-direction:column; gap:9px; }
+  /* cable voicing (firmware presets) */
   .presetgrid { display:flex; flex-direction:column; gap:6px; }
   .preset { font:500 12px/1 'IBM Plex Mono',monospace; cursor:pointer; padding:10px 12px; border-radius:8px;
     background:var(--btn-bg); color:var(--ink-2); border:1px solid var(--line); transition:.12s; text-align:left;
@@ -258,13 +280,12 @@
   .preset:disabled { opacity:.45; cursor:not-allowed; }
   .preset:disabled:hover { border-color:var(--line); color:var(--ink-2); }
 
-  /* saved eqs card */
-  .savedcard { flex:1; min-height:0; padding:14px; display:flex; flex-direction:column; gap:9px; overflow:hidden; }
+  /* saved EQs (dialog) */
   .backuplinks { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--muted); }
   .backuplinks a { color:var(--muted); cursor:pointer; } .backuplinks a:hover { color:var(--accent); }
   .backupmsg { font:11px/1 'IBM Plex Mono',monospace; color:var(--pos); }
   .backupmsg:empty { display:none; }
-  .savedlist { flex:1; min-height:0; display:flex; flex-direction:column; gap:5px; overflow:auto; }
+  .savedlist { min-height:0; max-height:360px; display:flex; flex-direction:column; gap:5px; overflow:auto; }
   .saved { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; cursor:pointer; background:var(--row-bg); transition:.12s; }
   .saved:hover { background:var(--chip-bg); }
   .saved .sname { font-size:12.5px; color:var(--ink); }
@@ -284,9 +305,6 @@
     background:var(--accent); color:var(--accent-ink); box-shadow:var(--shadow-accent); transition:.12s; }
   .writebtn:hover { filter:brightness(1.05); }
   .writebtn:disabled { opacity:.6; cursor:not-allowed; filter:none; }
-  .utils { display:flex; justify-content:space-between; font:10.5px/1 'IBM Plex Mono',monospace; }
-  .utils a { color:var(--muted); cursor:pointer; transition:.12s; }
-  .utils a:hover { color:var(--accent); }
   .writenote { font:11.5px/1.35 'IBM Plex Mono',monospace; color:var(--warn); background:var(--warn-bg);
     border:1px solid color-mix(in srgb,var(--warn) 35%,transparent); border-radius:9px; padding:9px 11px; }
 
@@ -314,11 +332,29 @@
 <body>
 <div class="shell">
 
+  <!-- header: brand, the connected cable as a datasheet row, links, window controls -->
   <div class="titlebar">
-    <div class="mark"><svg viewBox="0 0 1024 1024" aria-hidden="true"><defs><linearGradient id="mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b6ef5"/><stop offset="1" stop-color="#34379f"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#mk)"/><path d="M150 588 C 280 588 300 372 448 372 C 566 372 566 664 700 664 C 806 664 828 536 874 536" fill="none" stroke="#fff" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/><circle cx="448" cy="372" r="62" fill="#fff"/><circle cx="700" cy="664" r="62" fill="#fff"/></svg></div>
-    <span class="devname" id="devName">FreeDSP Studio</span>
-    <span class="statuspill hidden" id="statusPill"><span class="dot"></span><span class="mono" id="statusText"></span></span>
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 1024 1024" aria-hidden="true"><defs><linearGradient id="mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b6ef5"/><stop offset="1" stop-color="#34379f"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#mk)"/><path d="M150 588 C 280 588 300 372 448 372 C 566 372 566 664 700 664 C 806 664 828 536 874 536" fill="none" stroke="#fff" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/><circle cx="448" cy="372" r="62" fill="#fff"/><circle cx="700" cy="664" r="62" fill="#fff"/></svg></div>
+      <div>
+        <span class="brand-name">FreeDSP Studio</span>
+        <span class="seclabel brand-sub">Parametric EQ for USB-C DSP cables</span>
+      </div>
+    </div>
+    <dl class="specs hidden" id="specs">
+      <div><dt class="seclabel">Device</dt><dd id="devName"></dd></div>
+      <div id="specId"><dt class="seclabel">USB ID</dt><dd class="mono" id="devId"></dd></div>
+      <div id="specBands"><dt class="seclabel">Bands</dt><dd class="mono" id="devBands"></dd></div>
+      <div><dt class="seclabel">Status</dt><dd class="mono status" id="statusPill"><span class="dot"></span><span id="statusText"></span></dd></div>
+    </dl>
     <div class="tb-right">
+      <nav class="toplinks hidden" id="topLinks">
+        <a id="linkRead" title="Read the cable's current custom bank">read cable</a>
+        <a id="linkSaved" title="Saved EQs and built-in starting points">saved</a>
+        <a id="linkBackup" title="Back up or restore your EQs and FR curves">backup</a>
+        <a id="linkLog" title="Diagnostics log">log</a>
+        <a id="linkAbout" title="About FreeDSP Studio">about</a>
+      </nav>
       <button class="winbtn hidden" id="disconnectBtn" title="Disconnect">⏏</button>
       <div class="themeswitch">
         <button id="themeLight" title="Light">☀</button>
@@ -342,13 +378,16 @@
 
     <div id="workspace" class="workspace hidden">
 
-      <div class="col-left">
-        <div class="readnote hidden" id="readNote">
+      <!-- Fig. 1 and Table 1 -->
+      <div class="ws-main">
+        <div class="readnote hidden" id="readNote" style="margin-bottom:8px">
           <span>Read-back gains are whole dB, the cable can only report integer values, so any decimals are rounded on read. There's nothing the app can do about that. For precise edits, save an EQ and tweak the saved copy rather than relying on the read-back.</span>
           <span class="rn-x" id="readNoteX" title="Dismiss">✕</span>
         </div>
-        <div class="graphcard card" id="graphCard">
-          <canvas id="graph"></canvas>
+        <div class="fighead">
+          <span class="seclabel ink2">Fig. 1</span>
+          <span class="figtitle" id="figTitle">EQ response</span>
+          <div class="grow"></div>
           <div class="gmode">
             <button id="modeEq" class="on" title="EQ curve">EQ</button>
             <button id="modeFr" title="Frequency response vs target">FR</button>
@@ -356,74 +395,85 @@
             <button id="trebleView" class="hidden" title="Show the measurement with your treble correction (smoothed rig level + your listening test above ~6 kHz), or the raw rig measurement">TREBLE</button>
           </div>
         </div>
+        <div class="graphcard" id="graphCard">
+          <canvas id="graph"></canvas>
+        </div>
 
-        <div class="bandcard card">
-          <div class="bandhead">
-            <span class="seclabel" id="bandCountLabel">Custom EQ · 9 bands</span>
-            <div class="bandhead-right">
-            <div class="fr-inline">
-              <div class="rigtoggle sm" id="rigToggleInline"><button data-rig="5128" class="on">5128</button><button data-rig="711">711</button><button data-rig="other">other</button></div>
-              <select id="measSel" class="frsel" title="Measurement"></select>
-              <select id="tgtSel" class="frsel" title="Target"></select>
-            </div>
-            <div class="headbtns">
-              <button class="btn sm on" id="autoFitBtn" title="Auto-fit the 9 bands to your target">Auto-fit</button>
-              <button class="btn sm iconbtn" id="fitCfgBtn" title="Auto-fit settings">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-              <button class="btn sm" id="sortBtn" title="Order bands by frequency">Sort</button>
-              <button class="btn sm" id="flatBtn" title="Reset all bands to flat">Flatten</button>
-              <button class="btn sm" id="undoBtn" title="Undo last change" disabled>↶ Undo</button>
-            </div>
-            </div>
-          </div>
-          <div class="bandgrid" id="bands"></div>
-          <button class="eqtext-btn" id="eqTextBtn" title="Edit the EQ as text (squig / AutoEQ)">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="8" x2="19" y2="8"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="16" x2="13" y2="16"/></svg>
-          </button>
+        <div class="fighead tablehead">
+          <span class="seclabel ink2">Table 1</span>
+          <span class="figtitle">Bands</span>
+          <div class="grow"></div>
+          <button class="btn sm" id="sortBtn" title="Order bands by frequency">Sort</button>
+          <button class="btn sm" id="flatBtn" title="Reset all bands to flat">Flatten</button>
+          <button class="btn sm" id="undoBtn" title="Undo last change" disabled>↶ Undo</button>
+          <button class="btn sm" id="eqTextBtn" title="Edit the EQ as text (squig / AutoEQ)">As text</button>
+        </div>
+        <div class="bandwrap">
+          <table class="bandtable">
+            <thead><tr><th scope="col">#</th><th scope="col">Type</th><th scope="col">Freq, Hz</th><th scope="col">Gain, dB</th><th scope="col">Q</th><th scope="col" id="barScale">−12 · 0 · +12</th></tr></thead>
+            <tbody id="bands"></tbody>
+          </table>
         </div>
       </div>
 
-      <div class="col-rail">
-        <div class="profcard card hidden" id="profCard">
-          <span class="seclabel">Active profile</span>
+      <!-- the workflow, in order -->
+      <div class="ws-rail">
+       <div class="rail-scroll">
+        <section class="step-sec hidden" id="profCard">
+          <h2 class="step">Cable voicing</h2>
           <div class="presetgrid" id="presetGrid"></div>
-        </div>
+        </section>
 
-        <div class="preampcard card">
-          <div class="row spread">
-            <span class="seclabel">Preamp</span>
-            <span class="preampval"><input type="text" inputmode="decimal" id="preampVal" value="0.0" spellcheck="false" title="Type a preamp value (dB)">dB</span>
+        <section class="step-sec">
+          <h2 class="step"><b>01</b>Measurement<a class="steplink" id="linkFr" title="Import and manage measurement and target files">FR files…</a></h2>
+          <div class="rigtoggle" id="rigToggleInline"><button data-rig="5128" class="on">5128</button><button data-rig="711">711</button><button data-rig="other">other</button></div>
+          <div class="kv">
+            <label class="seclabel" for="measSel">IEM</label><select id="measSel" class="frsel" title="Measurement"></select>
+            <label class="seclabel" for="tgtSel">Target</label><select id="tgtSel" class="frsel" title="Target"></select>
           </div>
-          <input type="range" class="preamp" id="preampSlider" min="-20" max="0" step="0.1" value="0">
-          <div class="row2">
-            <button class="btn" id="autoPreampBtn" title="Set preamp to just avoid clipping">Auto headroom</button>
-            <button class="btn" id="hiGainBtn" title="Raise the per-band ceiling from +3 to +6 dB">+6 dB mode</button>
+        </section>
+
+        <section class="step-sec">
+          <h2 class="step"><b>02</b>Fit<a class="steplink" id="fitCfgReset" title="Back to the default fit settings">reset</a></h2>
+          <fieldset class="fitmode" id="fitMode">
+            <legend class="sr">Spend the bands on</legend>
+            <label><input type="radio" name="fitMode" value="range"> Measurement only, up to a frequency</label>
+            <label><input type="radio" name="fitMode" value="treble"> Whole target, treble from your ears</label>
+          </fieldset>
+          <div class="kv wide">
+            <div class="kvrow" id="fitLowRow"><label class="seclabel" for="fitLow">Low bound, Hz</label><input type="number" id="fitLow" min="20" max="20000" step="10"></div>
+            <div class="kvrow" id="fitHighRow"><label class="seclabel" for="fitHigh">High bound, Hz</label><input type="number" id="fitHigh" min="20" max="20000" step="10"></div>
+            <div class="kvrow hidden" id="fitTopRow"><label class="seclabel" for="fitTop" title="Nothing is fitted above this: set it to where your hearing stops">Upper limit, Hz</label><input type="number" id="fitTop" min="8000" max="20000" step="500"></div>
+            <div class="kvrow"><label class="seclabel" for="fitBands">Bands <span id="fitBandsOf">of 9</span></label><input type="number" id="fitBands" min="1" max="9" step="1"></div>
+          </div>
+          <div class="fitnote" id="fitModeNote"></div>
+          <button class="btn on" id="autoFitBtn" title="Auto-fit the bands to your target" style="align-self:flex-start">Auto-fit</button>
+        </section>
+
+        <section class="step-sec">
+          <h2 class="step"><b>03</b>Treble, by ear<a class="steplink" id="trebleChange" title="Saved treble profiles for this measurement">profiles</a></h2>
+          <span class="tprof" id="trebleProf"></span>
+          <div class="steprow">
+            <button class="btn" id="trebleRun" title="Run the treble listening test">Run test</button>
+            <button class="btn" id="trebleApply" title="Turn the selected profile into treble bands in the EQ's flat slots">Apply to EQ</button>
+          </div>
+          <div class="tt-warn" id="trebleMsg"></div>
+        </section>
+       </div>
+
+        <section class="step-sec step-write">
+          <h2 class="step"><b>04</b>Write</h2>
+          <div class="steprow">
+            <label class="seclabel" for="preampVal">Preamp</label>
+            <span class="preampval"><input type="text" inputmode="decimal" id="preampVal" value="0.0" spellcheck="false" title="Type a preamp value (dB)">dB</span>
+            <div class="grow"></div>
+            <button class="btn sm" id="autoPreampBtn" title="Set preamp to just avoid clipping">Auto headroom</button>
+            <button class="btn sm" id="hiGainBtn" title="Raise the per-band ceiling from +3 to +6 dB">+6 dB</button>
           </div>
           <div class="clip ok" id="clip"><span class="dot"></span><span id="clipText"></span></div>
-        </div>
-
-        <div class="savedcard card">
-          <span class="seclabel">Saved EQs</span>
-          <div class="savedlist" id="savedChips"></div>
-          <div class="savedfoot">
-            <input type="text" id="saveName" placeholder="Name…">
-            <button class="btn" id="saveBtn">Save</button>
-          </div>
-        </div>
-
-        <div class="writewrap">
           <div class="writenote hidden" id="writeNote"></div>
           <button class="writebtn" id="writeBtn">Write to cable</button>
-          <div class="utils">
-            <a id="linkRead" title="Read the cable's current custom bank">read cable</a>
-            <a id="linkBackup" title="Back up or restore your EQs and FR curves">backup</a>
-            <a id="linkLog" title="Diagnostics log">log</a>
-            <a id="linkFr" title="Measurement and target">FR</a>
-            <a id="linkTreble" title="Treble listening test (above ~6 kHz)">treble</a>
-            <a id="linkAbout" title="About FreeDSP Studio">about</a>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   </div>
@@ -462,25 +512,15 @@
     <input type="file" id="backupFile" accept=".json" style="display:none">
   </div>
 
-  <div class="modal hidden" id="modalFitCfg">
+  <div class="modal hidden" id="modalSaved">
     <div class="mhead">
-      <div><div class="mtitle">Auto-fit settings</div><div class="msub">Choose how the bands are spent. On a cable with only a few bands, one fit over the whole target usually spends them better than reserving some for the treble.</div></div>
+      <div><div class="mtitle">Saved EQs</div><div class="msub">Click one to load it into the editor. The built-in DUSK starting points come first.</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
-    <div class="fitcfg">
-      <div class="rigtoggle fitmode" id="fitMode">
-        <button data-mode="range">Up to a frequency</button>
-        <button data-mode="treble">Whole target + treble correction</button>
-      </div>
-      <div class="fitnote" id="fitModeNote"></div>
-      <div class="fitcfg-row" id="fitLowRow"><label>Low bound</label><input type="number" id="fitLow" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row" id="fitHighRow"><label>High bound</label><input type="number" id="fitHigh" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row hidden" id="fitTopRow"><label>Upper limit<br><span class="fitnote">Nothing is fitted above this: set it to where your hearing stops.</span></label><input type="number" id="fitTop" min="8000" max="20000" step="500"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row"><label>Bands to fit</label><input type="number" id="fitBands" min="1" max="9" step="1"><span class="muted" id="fitBandsOf">of 9</span></div>
-    </div>
-    <div class="row" style="justify-content:space-between">
-      <button class="btn" id="fitCfgReset">Reset</button>
-      <button class="btn on" id="fitCfgDone">Done</button>
+    <div class="savedlist" id="savedChips"></div>
+    <div class="savedfoot">
+      <input type="text" id="saveName" placeholder="Name the current EQ…">
+      <button class="btn on" id="saveBtn">Save</button>
     </div>
   </div>
 
@@ -740,7 +780,6 @@ function snap(){ return { model: model.map(b=>({...b})), preamp, hiGain, gCeil }
 function pushUndo(){ const s=snap(); if(history.length && JSON.stringify(history[history.length-1])===JSON.stringify(s)) return; history.push(s); if(history.length>60) history.shift(); updateUndoBtn(); }
 function undo(){ if(!history.length) return; const s=history.pop(); model=s.model.map(b=>({...b})); preamp=s.preamp; hiGain=s.hiGain; gCeil=s.gCeil; renderAll(); updateUndoBtn(); }
 function updateUndoBtn(){ const b=$('undoBtn'); if(b) b.disabled=!history.length; }
-function paintSlider(inp){ const mn=+inp.min, mx=+inp.max, pct=((+inp.value-mn)/(mx-mn))*100; inp.style.setProperty('--pct', pct.toFixed(1)+'%'); }
 
 // ---- EQ math (RBJ cookbook) ----
 function rbj(type,f,g,q,fs){
@@ -798,7 +837,6 @@ function resetCableCaps(){
 }
 // Labels and controls that only make sense for one generation.
 function syncCapUI(){
-  const lbl=$('bandCountLabel'); if(lbl) lbl.textContent=`Custom EQ · ${NB} bands`;
   const af=$('autoFitBtn'); if(af) af.title=`Auto-fit the ${NB} bands to your target`;
   const fb=$('fitBands'); if(fb){ fb.max=NB; if(+fb.value>NB) fb.value=NB; }
   const fo=$('fitBandsOf'); if(fo) fo.textContent=`of ${NB}`;
@@ -813,6 +851,9 @@ const dbToY = (db) => 1-((db-DB_MIN)/DB_SPAN);                   // 0..1 (top=0)
 
 // ---- graph ----
 function drawGraph(){
+  const ft=$('figTitle');
+  if(ft){ const n=model.filter(b=>b.gain).length;
+    ft.textContent = graphMode==='fr' && curMeas && frCache.meas[curMeas] ? `Response vs target · ${curMeas}` : `EQ response, ${n} of ${NB} bands`; }
   const cv=$('graph'); if(!cv) return; const dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth, H=cv.clientHeight; if(!W||!H) return; cv.width=W*dpr; cv.height=H*dpr;
   const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
@@ -846,7 +887,7 @@ function drawGraph(){
 }
 
 // ---- preamp / clip ----
-function syncPreampUI(){ const s=$('preampSlider'); if(s){ s.value=preamp; const v=$('preampVal'); if(document.activeElement!==v) v.value=preamp.toFixed(1); paintSlider(s); } }
+function syncPreampUI(){ const v=$('preampVal'); if(v && document.activeElement!==v) v.value=preamp.toFixed(1); }
 function setPreamp(v){ preamp=Math.round(clamp(v,-20,0)*10)/10; syncPreampUI(); drawGraph(); updateClip(); }
 function updateClip(){
   const {p:raw,pf}=peak(); const eff=raw+preamp; const el=$('clip'), t=$('clipText');
@@ -1027,14 +1068,14 @@ function syncFitCfgUI(){
   if(!$('fitLow')) return;
   $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands;
   const tm=fitCfg.mode==='treble';
-  document.querySelectorAll('#fitMode button').forEach(b=>b.classList.toggle('on', b.dataset.mode===fitCfg.mode));
+  document.querySelectorAll('#fitMode input').forEach(r=>{ r.checked = r.value===fitCfg.mode; });
   show('fitLowRow',!tm); show('fitHighRow',!tm); show('fitTopRow',tm); $('fitTop').value=fitCfg.top;
   const prof=activeTrebleProfile();
   $('fitModeNote').innerHTML = !tm
-    ? 'Fits the measurement to the target between these bounds and leaves the remaining bands flat. With a 711, a high bound of about 6000 Hz keeps its treble out of the fit.'
+    ? ''
     : prof
-      ? `Fits 20 Hz – ${(fitCfg.top/1000).toFixed(fitCfg.top%1000?1:0)} kHz with every band. Above ~6 kHz the fit uses the smoothed rig level, the target's broad shape and your <b>${escHtml(frCache.meas[curMeas].treble.sel)}</b> treble profile instead of the rig's treble detail.`
-      : `Needs a treble profile for this measurement. <a id="fitRunTest">Run the treble test…</a>`;
+      ? `Above ~6 kHz the fit follows the target's broad shape and your <b>${escHtml(frCache.meas[curMeas].treble.sel)}</b> profile, not the rig's treble detail.`
+      : `Needs a treble profile for this measurement (step 03). <a id="fitRunTest">Run the test…</a>`;
   const rt=$('fitRunTest'); if(rt) rt.onclick=()=>openTreble();
 }
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1561,8 +1602,16 @@ function syncTrebleUI(){
   const has=!!activeTrebleProfile(), vis=has && graphMode==='fr';
   show('trebleView',vis); show('trebleSep',vis);
   $('trebleView').classList.toggle('on', trebleView);
-  if(!$('modalFitCfg').classList.contains('hidden')) syncFitCfgUI();
+  syncFitCfgUI(); syncTrebleStep();
   if(graphMode==='fr') drawGraph();
+}
+// Step 03: which profile is in play for this measurement.
+function syncTrebleStep(){
+  const el=$('trebleProf'); if(!el) return;
+  const m=curMeas && frCache.meas[curMeas], t=m && m.treble, p=t && t.profiles && t.profiles[t.sel];
+  el.innerHTML = p ? `<b>${escHtml(t.sel)}</b><span class="muted"> · ${escHtml(p.date||'')}</span>`
+                   : `<span class="muted">${m ? 'No profile for this IEM yet' : 'No measurement selected'}</span>`;
+  $('trebleApply').disabled=!p;
 }
 function ttKey(e){
   if($('modalTreble').classList.contains('hidden') || !tt) return;
@@ -1648,18 +1697,18 @@ function nudgeField(b,k,dir,big){
 let rowEls=[];
 function renderBands(){
   const box=$('bands'); box.innerHTML=''; rowEls=[];
+  const sc=$('barScale'); if(sc){ const g=gainScale(); sc.textContent=`−${g} · 0 · +${g}`; }
   model.forEach((b,i)=>{
-    const row=document.createElement('div'); row.className='band'; row.dataset.i=i;
+    const row=document.createElement('tr'); row.className='band'; row.dataset.i=i;
     row.innerHTML=
-      `<div class="chip">${i+1}</div>`+
-      `<div class="content">`+
-        `<label class="fld f-freq"><input data-k="freq" inputmode="decimal" spellcheck="false" title="Frequency (Hz, or e.g. 8k)"><span>Hz</span></label>`+
-        `<label class="fld"><input data-k="gain" inputmode="decimal" spellcheck="false" title="Gain (dB)"><span>dB</span></label>`+
-        `<label class="fld"><input data-k="q" inputmode="decimal" spellcheck="false" title="Q"><span>Q</span></label>`+
-        `<span class="rt" title="Click to change filter type"></span>`+
-      `</div>`;
+      `<td><span class="chip">${i+1}</span></td>`+
+      `<td><button class="rt" title="Click to change filter type"></button></td>`+
+      `<td><input class="cell" data-k="freq" inputmode="decimal" spellcheck="false" aria-label="Band ${i+1} frequency" title="Frequency (Hz, or e.g. 8k)"></td>`+
+      `<td><input class="cell" data-k="gain" inputmode="decimal" spellcheck="false" aria-label="Band ${i+1} gain" title="Gain (dB)"></td>`+
+      `<td><input class="cell" data-k="q" inputmode="decimal" spellcheck="false" aria-label="Band ${i+1} Q" title="Q"></td>`+
+      `<td><div class="gbar" aria-hidden="true"><i></i><b></b></div></td>`;
     row.querySelector('.rt').onclick = ()=>{ pushUndo(); b.type=TYPE_CYCLE[(TYPE_CYCLE.indexOf(b.type)+1)%TYPE_CYCLE.length]; renderAll(); };
-    row.querySelectorAll('.fld input').forEach(inp=>{
+    row.querySelectorAll('input.cell').forEach(inp=>{
       const k=inp.dataset.k; let undone=false;   // one undo step per visit to the field
       const changed=()=>{ updateReadout(i, inp); positionNodes(); drawGraph(); updateClip(); };
       const commit=()=>{ const v=parseField(k,inp.value);
@@ -1687,13 +1736,18 @@ function renderBands(){
 function updateReadout(i, editing){
   const row=rowEls[i], b=model[i]; if(!row) return;
   row.classList.toggle('flat', !b.gain);
-  row.querySelectorAll('.fld input').forEach(inp=>{
+  const sign = b.gain===0?'zero':(b.gain>0?'pos':'cut');
+  row.querySelectorAll('input.cell').forEach(inp=>{
     const k=inp.dataset.k;
     if(inp!==editing && document.activeElement!==inp) inp.value=fmtField(k,b[k]);
-    if(k==='gain') inp.className = b.gain===0?'zero':(b.gain>0?'pos':'cut');
+    if(k==='gain') inp.className='cell '+sign;
   });
   row.querySelector('.rt').textContent=TYPE_LABEL[b.type]||'PK';
+  // gain bar, centred on 0 dB, scaled to the cable's gain range
+  const bar=row.querySelector('.gbar b'), w=Math.min(50, Math.abs(b.gain)/gainScale()*50);
+  bar.className=sign; bar.style.width=w+'%'; bar.style.left=(b.gain>=0?50:50-w)+'%';
 }
+function gainScale(){ return Math.max(Math.abs(LIM.gMin), curGMax(), 1); }
 function renderAll(){ renderBands(); renderNodes(); syncHiGainUI(); refreshCurve(); }
 
 // ---- squig import / export ----
@@ -1774,7 +1828,7 @@ function renderSaved(){
     const row=document.createElement('div'); row.className='saved';
     row.innerHTML=`<span class="sname">${n}</span><span class="stag">built-in</span>`+
       `<span class="smeta">${nBands(bnds)} bands · 0.0</span>`;
-    row.onclick=()=>applyEq(bnds,0,'built-in "'+n+'"'); box.appendChild(row);
+    row.onclick=()=>{ applyEq(bnds,0,'built-in "'+n+'"'); closeModal(); }; box.appendChild(row);
   });
   const all=loadSaved(); const names=Object.keys(all);
   if(!names.length && !Object.keys(STARTING).length){ box.innerHTML='<div class="savedempty">No saved EQs yet.</div>'; return; }
@@ -1784,7 +1838,7 @@ function renderSaved(){
     row.innerHTML=`<span class="sname">${n}</span>`+
       `<span class="smeta">${nBands(bnds)} bands · ${pre.toFixed(1)}</span>`+
       `<span class="sdel" title="Delete">✕</span>`;
-    row.onclick=()=>applyEq(bnds,pre,'saved EQ "'+n+'"');
+    row.onclick=()=>{ applyEq(bnds,pre,'saved EQ "'+n+'"'); closeModal(); };
     row.querySelector('.sdel').onclick=(ev)=>{ ev.stopPropagation(); const o=loadSaved(); delete o[n]; storeSaved(o); renderSaved(); };
     box.appendChild(row);
   });
@@ -1795,11 +1849,10 @@ async function call(promise,label){ const r=await promise; if(!r||!r.ok){ log(`$
 function renderCable(info){
   applyCableCaps(info);
   $('devName').textContent=info.name;
-  const id=`${info.vid.toString(16)}:${info.pid.toString(16)}`;
-  $('statusText').textContent = info.firmware
-    ? `connected · ${id} · fw ${info.firmware}`
-    : `connected · ${id}`;
-  show('statusPill',true); show('disconnectBtn',true);
+  $('devId').textContent=`${info.vid.toString(16).toUpperCase().padStart(4,'0')}:${info.pid.toString(16).toUpperCase().padStart(4,'0')}`;
+  $('devBands').textContent = -info.gainMin===info.gainMax ? `${info.bands} · ±${info.gainMax} dB` : `${info.bands} · −${-info.gainMin} / +${info.gainMax} dB`;
+  $('statusText').textContent = info.firmware ? `connected · fw ${info.firmware}` : 'connected';
+  show('specs',true); show('topLinks',true); show('disconnectBtn',true);
   // Active-profile switching only applies to cables that have firmware voicings to switch
   // between — DUSK and MAY on gen-1, the FreeDSP Mini on gen-2.
   show('profCard', info.hasPresets===true);
@@ -1913,11 +1966,11 @@ async function openCable(d){
 }
 async function disconnect(){ try{ await window.dsp.close(); }catch(e){}
   cable=null; cableEq=null; resetCableCaps(); clearWriteNote(); closeModal();
-  show('workspace',false); show('statusPill',false); show('disconnectBtn',false); show('deviceList',false);
-  $('devName').textContent='FreeDSP Studio'; show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
+  show('workspace',false); show('specs',false); show('topLinks',false); show('disconnectBtn',false); show('deviceList',false);
+  show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
 
 // ---- modals ----
-const MODALS=['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalFitCfg','modalTreble'];
+const MODALS=['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalSaved','modalTreble'];
 function openModal(id){ if(id!=='modalTreble') ttHalt(); show('overlay',true); MODALS.forEach(m=>show(m, m===id)); }
 function closeModal(){ ttHalt(); ttResult=null; show('overlay',false); MODALS.forEach(m=>show(m,false)); }
 function flashLink(el,txt){ const o=el.textContent; el.textContent=txt; setTimeout(()=>{el.textContent=o;},1100); }
@@ -1954,7 +2007,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('flatBtn').onclick=()=>{ pushUndo(); model=blankModel(); preamp=0; renderAll(); };
   $('undoBtn').onclick=undo;
   // preamp
-  $('preampSlider').onpointerdown=pushUndo; $('preampSlider').oninput=(e)=>setPreamp(+e.target.value);
   $('preampVal').onfocus=(e)=>requestAnimationFrame(()=>e.target.select());
   $('preampVal').onchange=$('preampVal').onblur=(e)=>{ const v=parseField('gain',e.target.value);
     if(isFinite(v) && Math.round(clamp(v,-20,0)*10)/10!==preamp){ pushUndo(); setPreamp(v); } e.target.value=preamp.toFixed(1); };
@@ -1989,16 +2041,18 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('autoFitBtn').onclick=()=>{ if(!curMeas || !tgtRec()){ openModal('modalFr'); $('frMsg').textContent='Pick a measurement and a target, then Auto-fit.'; return; }
     if(autoFit()==='noprofile'){ openTreble(); $('ttWarn').textContent='Auto-fit is set to "whole target + treble correction", which needs a treble profile for this measurement. Run the test, or switch the mode in Auto-fit settings.'; return; }
     setGraphMode('fr'); };
-  $('fitCfgBtn').onclick=()=>{ syncFitCfgUI(); openModal('modalFitCfg'); };
   $('fitLow').onchange=()=>{ fitCfg.fLow=clamp(Math.round(+$('fitLow').value)||20,20,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitHigh').onchange=()=>{ fitCfg.fHigh=clamp(Math.round(+$('fitHigh').value)||20000,20,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitBands').onchange=()=>{ fitCfg.bands=clamp(Math.round(+$('fitBands').value)||NB,1,NB); saveFitCfg(); syncFitCfgUI(); };
   $('fitTop').onchange=()=>{ fitCfg.top=clamp(Math.round(+$('fitTop').value)||16000,8000,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:NB,mode:'range',top:16000}; saveFitCfg(); syncFitCfgUI(); };
-  document.querySelectorAll('#fitMode button').forEach(b=>b.onclick=()=>{ fitCfg.mode=b.dataset.mode; saveFitCfg(); syncFitCfgUI(); });
-  $('fitCfgDone').onclick=closeModal;
+  document.querySelectorAll('#fitMode input').forEach(r=>r.onchange=()=>{ fitCfg.mode=r.value; saveFitCfg(); syncFitCfgUI(); });
   // treble listening test
-  $('linkTreble').onclick=openTreble;
+  $('trebleRun').onclick=openTreble; $('trebleChange').onclick=openTreble;
+  $('trebleApply').onclick=()=>{ const m=curMeas && frCache.meas[curMeas], t=m && m.treble, p=t && t.profiles && t.profiles[t.sel];
+    const r=applyTrebleToEq(p), el=$('trebleMsg'); el.textContent=r.msg; el.classList.toggle('ok', r.ok);
+    clearTimeout(el._t); el._t=setTimeout(()=>{ el.textContent=''; }, 6000); };
+  $('linkSaved').onclick=()=>{ renderSaved(); openModal('modalSaved'); $('saveName').focus(); };
   $('trebleView').onclick=()=>{ trebleView=!trebleView; saveTrebleView(); syncTrebleUI(); };
   document.querySelectorAll('#ttLen button').forEach(b=>b.onclick=()=>{ ttLen=b.dataset.len; renderTrebleSetup(); });
   document.querySelectorAll('#ttMethod button').forEach(b=>b.onclick=()=>{ ttMethod=b.dataset.method; try{ localStorage.setItem('dsp-tt-method',ttMethod); }catch(e){} renderTrebleSetup(); });
