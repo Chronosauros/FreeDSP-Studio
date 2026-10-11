@@ -146,6 +146,35 @@
   .fitcfg-row input { width:96px; font:12px/1 'IBM Plex Mono',monospace; padding:8px 9px; border-radius:8px; background:var(--card); border:1px solid var(--line); color:var(--ink); }
   .fitcfg-row input:focus { outline:none; border-color:var(--accent); }
   .fitcfg-row .muted { font:11px/1 'IBM Plex Mono',monospace; width:28px; }
+  .fitmode { align-self:flex-start; }
+  .fitnote { font:11.5px/1.45 'IBM Plex Sans',sans-serif; color:var(--muted); }
+  .fitnote a { color:var(--accent); cursor:pointer; }
+
+  /* treble listening test */
+  .gmode .sep { width:1px; margin:3px 2px; background:var(--line); }
+  .tt { display:flex; flex-direction:column; gap:12px; }
+  .tt-text { font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted); }
+  .tt-text b { color:var(--ink-2); font-weight:600; }
+  .tt-row { display:flex; align-items:center; gap:10px; }
+  .tt-row label { font-size:13px; color:var(--ink-2); flex:none; width:90px; }
+  .tt-row input[type=text] { flex:1; min-width:0; font:12.5px/1 'IBM Plex Sans',sans-serif; padding:8px 10px; border-radius:8px;
+    background:var(--card); border:1px solid var(--line); color:var(--ink); user-select:text; }
+  .tt-row input[type=text]:focus { outline:none; border-color:var(--accent); }
+  .tt-warn { font:11.5px/1.45 'IBM Plex Mono',monospace; color:var(--warn); background:var(--warn-bg); border-radius:9px; padding:8px 11px; }
+  .tt-warn:empty { display:none; }
+  .tt-stage { display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 12px; border-radius:12px; background:var(--row-bg); text-align:center; }
+  .tt-freq { font:600 26px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .tt-phase { font:12.5px/1.4 'IBM Plex Sans',sans-serif; color:var(--muted); min-height:18px; }
+  .tt-phase.ask { color:var(--accent); font-weight:600; }
+  .tt-answers { display:flex; gap:10px; }
+  .tt-answers .btn { flex:1; padding:14px; font-size:13px; }
+  .tt-prog { height:4px; border-radius:2px; background:var(--track); overflow:hidden; }
+  .tt-prog > div { height:100%; width:0; background:var(--accent); transition:width .25s; }
+  .tt-res { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .tt-res div { display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 4px; border-radius:8px; background:var(--row-bg);
+    font:11px/1 'IBM Plex Mono',monospace; color:var(--muted); }
+  .tt-res b { font:600 13px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .tt-keys { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--faint); text-align:center; }
 
   /* graph card */
   .graphcard { position:relative; height:360px; flex:none; border-radius:14px; overflow:hidden;
@@ -176,15 +205,19 @@
   .band .chip { width:20px; height:20px; border-radius:6px; display:grid; place-items:center;
     font:600 10px/1 'IBM Plex Mono',monospace; background:var(--accent); color:var(--accent-ink); }
   .band.flat .chip { background:var(--node-dim); color:var(--node-dim-ink); }
-  .band .content { display:flex; flex-direction:column; gap:6px; min-width:0; }
-  .band .readout { display:flex; align-items:baseline; gap:8px; }
-  .band .rf { font:500 12.5px/1 'IBM Plex Mono',monospace; color:var(--ink); }
-  .band .rg { font:500 12.5px/1 'IBM Plex Mono',monospace; }
-  .band .rg.pos { color:var(--pos); } .band .rg.cut { color:var(--accent); } .band .rg.zero { color:var(--faint); }
-  .band .rq { font:11px/1 'IBM Plex Mono',monospace; margin-left:auto; color:var(--faint); }
-  .band .rt { font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; color:var(--ink-2); cursor:pointer; }
+  .band .content { display:flex; align-items:center; gap:7px; min-width:0; }
+  .band .rt { font:600 10px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; color:var(--ink-2); cursor:pointer; width:28px; text-align:right; flex:none; }
   .band .rt:hover { color:var(--accent); }
-  .band .sliders { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; }
+  /* typed band values: freq / gain / Q. Arrow keys nudge, Shift for bigger steps. */
+  .fld { flex:1; min-width:0; display:flex; align-items:center; gap:4px; padding:0 7px; border-radius:7px;
+    background:var(--card); border:1px solid var(--line); cursor:text; transition:border-color .12s; }
+  .fld:focus-within { border-color:var(--accent); }
+  .fld input { flex:1; min-width:0; width:100%; border:0; outline:none; background:transparent; padding:6px 0;
+    font:500 12.5px/1 'IBM Plex Mono',monospace; color:var(--ink); user-select:text; }
+  .fld span { font:10px/1 'IBM Plex Mono',monospace; color:var(--faint); flex:none; }
+  .fld.f-freq { flex:1.25; }
+  .fld input.pos { color:var(--pos); } .fld input.cut { color:var(--accent); } .fld input.zero { color:var(--faint); }
+  .band.flat .fld { background:transparent; }
 
   /* sliders (band + preamp) */
   input[type=range] { -webkit-appearance:none; appearance:none; width:100%; background:transparent; cursor:pointer; height:12px; margin:0; }
@@ -201,7 +234,10 @@
   .row.spread { justify-content:space-between; }
   .row2 { display:flex; gap:7px; }
   .row2 .btn { flex:1; }
-  .preampval { font:500 16px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .preampval { display:flex; align-items:baseline; gap:4px; font:500 16px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .preampval input { width:62px; text-align:right; font:inherit; color:inherit; background:transparent; border:0; border-bottom:1px dashed var(--line);
+    outline:none; padding:2px 0; user-select:text; }
+  .preampval input:focus { border-bottom-color:var(--accent); }
   .clip { display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:9px; font:11.5px/1.4 'IBM Plex Mono',monospace; }
   .clip .dot { width:7px; height:7px; border-radius:50%; flex:none; }
   .clip.ok { background:var(--ok-bg); color:var(--pos); } .clip.ok .dot { background:var(--pos); }
@@ -312,6 +348,8 @@
           <div class="gmode">
             <button id="modeEq" class="on" title="EQ curve">EQ</button>
             <button id="modeFr" title="Frequency response vs target">FR</button>
+            <span class="sep hidden" id="trebleSep"></span>
+            <button id="trebleView" class="hidden" title="Show the measurement with your treble correction (smoothed rig level + your listening test above ~6 kHz), or the raw rig measurement">TREBLE</button>
           </div>
         </div>
 
@@ -351,7 +389,7 @@
         <div class="preampcard card">
           <div class="row spread">
             <span class="seclabel">Preamp</span>
-            <span class="preampval" id="preampVal">0.0 dB</span>
+            <span class="preampval"><input type="text" inputmode="decimal" id="preampVal" value="0.0" spellcheck="false" title="Type a preamp value (dB)">dB</span>
           </div>
           <input type="range" class="preamp" id="preampSlider" min="-20" max="0" step="0.1" value="0">
           <div class="row2">
@@ -378,6 +416,7 @@
             <a id="linkBackup" title="Back up or restore your EQs and FR curves">backup</a>
             <a id="linkLog" title="Diagnostics log">log</a>
             <a id="linkFr" title="Measurement and target">FR</a>
+            <a id="linkTreble" title="Treble listening test (above ~6 kHz)">treble</a>
             <a id="linkAbout" title="About FreeDSP Studio">about</a>
           </div>
         </div>
@@ -421,17 +460,88 @@
 
   <div class="modal hidden" id="modalFitCfg">
     <div class="mhead">
-      <div><div class="mtitle">Auto-fit settings</div><div class="msub">Limit the fit to a frequency range and a number of bands. Bands beyond the limit are left flat for you to use by hand — handy when a rig measures poorly up top (e.g. 711 above ~6 kHz).</div></div>
+      <div><div class="mtitle">Auto-fit settings</div><div class="msub">Choose how the bands are spent. On a cable with only a few bands, one fit over the whole target usually spends them better than reserving some for the treble.</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
     <div class="fitcfg">
-      <div class="fitcfg-row"><label>Low bound</label><input type="number" id="fitLow" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
-      <div class="fitcfg-row"><label>High bound</label><input type="number" id="fitHigh" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
+      <div class="rigtoggle fitmode" id="fitMode">
+        <button data-mode="range">Up to a frequency</button>
+        <button data-mode="treble">Whole target + treble correction</button>
+      </div>
+      <div class="fitnote" id="fitModeNote"></div>
+      <div class="fitcfg-row" id="fitLowRow"><label>Low bound</label><input type="number" id="fitLow" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
+      <div class="fitcfg-row" id="fitHighRow"><label>High bound</label><input type="number" id="fitHigh" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
       <div class="fitcfg-row"><label>Bands to fit</label><input type="number" id="fitBands" min="1" max="9" step="1"><span class="muted" id="fitBandsOf">of 9</span></div>
     </div>
     <div class="row" style="justify-content:space-between">
       <button class="btn" id="fitCfgReset">Reset</button>
       <button class="btn on" id="fitCfgDone">Done</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modalTreble">
+    <div class="mhead">
+      <div><div class="mtitle">Treble listening test</div><div class="msub" id="ttSub">Personal treble for the selected measurement, above ~6 kHz.</div></div>
+      <button class="winbtn" data-close title="Close">✕</button>
+    </div>
+
+    <!-- setup: saved profiles + start a new test -->
+    <div class="tt" id="ttSetup">
+      <div class="tt-text">Pink noise plays through the cable. Each round you hear one treble band on its own, then the full noise with that band nudged up or down, and you say whether it <b>sticks out</b>. The result is a per-tip profile of the peaks and dips your ear hears, used in place of the rig's treble detail.</div>
+      <div class="tt-text"><b>Before you start:</b> fit and write your EQ up to ~6 kHz, leave the treble alone, set the cable as your system output, and turn the volume to a normal listening level in a quiet room.</div>
+      <div>
+        <span class="seclabel">Profiles for this measurement</span>
+        <div class="fr-list" id="ttProfiles" style="margin-top:7px"></div>
+      </div>
+      <div class="tt-row"><label>Tip</label><input type="text" id="ttTip" placeholder="e.g. Spinfit W1 M" spellcheck="false"></div>
+      <div class="tt-row"><label>Length</label>
+        <div class="rigtoggle" id="ttLen"><button data-len="quick">Quick · ~3 min</button><button data-len="thorough">Thorough · ~7 min</button></div>
+      </div>
+      <div class="tt-warn" id="ttWarn"></div>
+      <div class="row" style="justify-content:space-between">
+        <button class="btn" id="ttLevel">▶ Level check</button>
+        <div class="row" style="gap:8px">
+          <button class="btn hidden" id="ttWrite">Write EQ to cable</button>
+          <button class="btn on" id="ttStart">Start test</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- running -->
+    <div class="tt hidden" id="ttRun">
+      <div class="tt-prog"><div id="ttProg"></div></div>
+      <div class="tt-stage">
+        <span class="seclabel" id="ttCount"></span>
+        <div class="tt-freq" id="ttFreq">—</div>
+        <div class="tt-phase" id="ttPhase"></div>
+      </div>
+      <div class="tt-answers" id="ttAnswers">
+        <button class="btn" id="ttNo">← No, it blends in</button>
+        <button class="btn" id="ttYes">Yes, it sticks out →</button>
+      </div>
+      <div class="hidden" id="ttReseat" style="display:flex; flex-direction:column; gap:10px">
+        <div class="tt-text">Halfway. <b>Take the IEMs out and put them back in</b>, so the result averages over two insertions instead of one.</div>
+        <button class="btn on" id="ttContinue">Continue</button>
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <button class="btn" id="ttStop">Stop</button>
+        <div class="row" style="gap:8px">
+          <button class="btn" id="ttReplay">Replay</button>
+          <button class="btn" id="ttPause">Pause</button>
+        </div>
+      </div>
+      <div class="tt-keys">← no · → yes · R replay · space pause</div>
+    </div>
+
+    <!-- result -->
+    <div class="tt hidden" id="ttDone">
+      <div class="tt-text">Correction your ear asked for at each band, in dB (what the EQ should add). Its overall level and tilt are removed, because the smoothed rig measurement and the target set those.</div>
+      <div class="tt-res" id="ttRes"></div>
+      <div class="tt-warn" id="ttDoneWarn"></div>
+      <div class="row" style="justify-content:space-between">
+        <button class="btn" id="ttDiscard">Discard</button>
+        <button class="btn on" id="ttSave">Save profile</button>
+      </div>
     </div>
   </div>
 
@@ -594,7 +704,7 @@ let graphMode = 'eq';                     // 'eq' or 'fr'
 let frCache = { meas:{}, targets:{} };    // name -> {rig, points:[[freq,db]...]}
 let curMeas = null, curTgt = null;        // selected names
 let activeRig = '5128';                   // 5128 / 711 / other — lists are filtered to this so rigs can't mix
-let fitCfg = { fLow:20, fHigh:20000, bands:9 };   // auto-fit bounds + band budget (persisted)
+let fitCfg = { fLow:20, fHigh:20000, bands:9, mode:'range' };   // auto-fit mode, bounds + band budget (persisted)
 let preamp = 0;
 let hiGain = false;   // "+6 dB mode", raises the per-band gain cap
 let gCeil = 6;        // ceiling used when +6 dB mode is on
@@ -713,7 +823,7 @@ function drawGraph(){
 }
 
 // ---- preamp / clip ----
-function syncPreampUI(){ const s=$('preampSlider'); if(s){ s.value=preamp; $('preampVal').textContent=preamp.toFixed(1)+' dB'; paintSlider(s); } }
+function syncPreampUI(){ const s=$('preampSlider'); if(s){ s.value=preamp; const v=$('preampVal'); if(document.activeElement!==v) v.value=preamp.toFixed(1); paintSlider(s); } }
 function setPreamp(v){ preamp=Math.round(clamp(v,-20,0)*10)/10; syncPreampUI(); drawGraph(); updateClip(); }
 function updateClip(){
   const {p:raw,pf}=peak(); const eff=raw+preamp; const el=$('clip'), t=$('clipText');
@@ -756,8 +866,10 @@ function drawFR(ctx,W,H,css,x){
         pos=css.getPropertyValue('--pos'), ink=css.getPropertyValue('--ink-2');
   const meas=frCache.meas[curMeas].points;
   const tgt = tgtRec() ? tgtRec().points : null;
+  const prof = trebleView ? activeTrebleProfile() : null;      // ear-corrected view, when on and available
+  const measAt = prof ? (f)=>earMeasAt(meas,prof,f) : (f)=>interpFR(meas,f);
   const eq1k=combinedAt(1000);
-  const result=(f)=> interpFR(meas,f) + combinedAt(f) - eq1k;   // EQ'd, re-normalised at 1 kHz
+  const result=(f)=> measAt(f) + combinedAt(f) - eq1k;          // EQ'd, re-normalised at 1 kHz
   // auto y-range over the visible curves
   let lo=Infinity, hi=-Infinity;
   for(let px=0;px<=W;px+=4){ const f=20*Math.pow(1000,px/W);
@@ -771,16 +883,23 @@ function drawFR(ctx,W,H,css,x){
   for(let db=lo; db<=hi; db+=5){ const py=y(db); ctx.strokeStyle=gridLine; ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(W,py); ctx.stroke(); ctx.fillStyle=faint; ctx.fillText(db, 9, py-3); }
   const curve=(fn,color,width,dash)=>{ ctx.setLineDash(dash||[]); ctx.strokeStyle=color; ctx.lineWidth=width;
     ctx.beginPath(); for(let px=0;px<=W;px+=1){ const f=20*Math.pow(1000,px/W); const v=fn(f); px===0?ctx.moveTo(px,y(v)):ctx.lineTo(px,y(v)); } ctx.stroke(); ctx.setLineDash([]); };
-  curve((f)=>interpFR(meas,f), band, 1.5);           // raw measurement
-  if(tgt) curve((f)=>interpFR(tgt,f), pos, 2, [6,4]); // target (dashed)
-  curve(result, accent, 2.5);                         // EQ'd result
+  // ear-corrected view: shade the region where the listening test replaces the rig's detail
+  if(prof){ const x0=x(TT_X0), x1=x(TT_HI); const g=ctx.createLinearGradient(x0,0,x(TT_X1),0);
+    g.addColorStop(0,'transparent'); g.addColorStop(1,(css.getPropertyValue('--accent-fill').trim()||'transparent'));
+    ctx.globalAlpha=0.35; ctx.fillStyle=g; ctx.fillRect(x0,0,x1-x0,H); ctx.globalAlpha=1; }
+  curve((f)=>interpFR(meas,f), band, 1.5, prof?[2,3]:null);  // raw measurement (dotted when corrected)
+  if(prof) curve(measAt, ink, 1.5);                           // ear-corrected measurement
+  if(tgt) curve((f)=>interpFR(tgt,f), pos, 2, [6,4]);         // target (dashed)
+  curve(result, accent, 2.5);                                 // EQ'd result
   // legend
   ctx.font="10px 'IBM Plex Mono',monospace"; ctx.textBaseline='middle';
   let lx=14; const ly=14;
   const leg=(label,color,dash)=>{ ctx.setLineDash(dash||[]); ctx.strokeStyle=color; ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+16,ly); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle=ink; ctx.fillText(label, lx+21, ly); lx += 21 + ctx.measureText(label).width + 16; };
-  leg('measurement', band); if(tgt) leg('target', pos, [6,4]); leg('with EQ', accent);
+  leg(prof?'rig':'measurement', band, prof?[2,3]:null);
+  if(prof) leg(`ear-corrected · ${frCache.meas[curMeas].treble.sel}`, ink);
+  if(tgt) leg('target', pos, [6,4]); leg('with EQ', accent);
   ctx.textBaseline='alphabetic';
 }
 
@@ -862,6 +981,7 @@ function renderFrLists(){
       tbox.appendChild(row); });
   }
   fillMeasSel(); fillTgtSel();
+  if($('trebleView')) syncTrebleUI();
 }
 function setGraphMode(m){
   if(m==='fr' && !curMeas){ openModal('modalFr'); return; }   // need a measurement first
@@ -869,6 +989,7 @@ function setGraphMode(m){
   $('modeEq').classList.toggle('on', m==='eq'); $('modeFr').classList.toggle('on', m==='fr');
   nodeEls.forEach(n=>{ n.style.display = m==='fr' ? 'none' : ''; });
   $('graphCard').style.cursor = m==='fr' ? 'default' : 'crosshair';
+  syncTrebleUI();
   drawGraph();
 }
 
@@ -877,13 +998,76 @@ function setGraphMode(m){
 // sharpness penalty and "only average energy above 10 kHz", adapted to our fixed 9 bands and
 // gain limits (SLSQP -> per-parameter golden-section coordinate descent, all in JS).
 const FIT_N = 180;
-function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9 }; }catch(e){} syncFitCfgUI(); }
+function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9, mode:o.mode==='treble'?'treble':'range' }; }catch(e){} syncFitCfgUI(); }
 function saveFitCfg(){ try{ localStorage.setItem('dsp-fitcfg', JSON.stringify(fitCfg)); }catch(e){} }
-function syncFitCfgUI(){ if($('fitLow')){ $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands; } }
-function fitGridErr(){                 // the correction the EQ should produce
+function syncFitCfgUI(){
+  if(!$('fitLow')) return;
+  $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands;
+  const tm=fitCfg.mode==='treble';
+  document.querySelectorAll('#fitMode button').forEach(b=>b.classList.toggle('on', b.dataset.mode===fitCfg.mode));
+  show('fitLowRow',!tm); show('fitHighRow',!tm);
+  const prof=activeTrebleProfile();
+  $('fitModeNote').innerHTML = !tm
+    ? 'Fits the measurement to the target between these bounds and leaves the remaining bands flat. With a 711, a high bound of about 6000 Hz keeps its treble out of the fit.'
+    : prof
+      ? `Fits 20 Hz – 20 kHz with every band. Above ~6 kHz the fit uses the smoothed rig level, the target's broad shape and your <b>${escHtml(frCache.meas[curMeas].treble.sel)}</b> treble profile instead of the rig's treble detail.`
+      : `Needs a treble profile for this measurement. <a id="fitRunTest">Run the treble test…</a>`;
+  const rt=$('fitRunTest'); if(rt) rt.onclick=()=>openTreble();
+}
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---- treble correction (listening-test profile) ----
+// Above ~6 kHz a coupler's fine detail doesn't match anyone's ear (the 711's 8 kHz peak is the
+// classic case), so with a profile active the fit stops trusting it there:
+//   - the measurement and target are both heavily smoothed, so only their broad level and shape
+//     (the target's "gist") survive and coupler peaks drop out, and
+//   - the listening test supplies the narrow peaks and dips as your ear hears this IEM + tip.
+// Below TT_X0 nothing changes; between TT_X0 and TT_X1 it crossfades.
+const TT_BANDS=[6300,7100,8000,9000,10000,11200,12500], TT_Q=3.5;
+const TT_X0=5000, TT_X1=6300;   // crossfade from raw rig data to the corrected view
+const TT_HI=16000;              // the profile tapers to nothing between the top band and here
+let trebleView=true;            // FR view shows the ear-corrected measurement when a profile exists
+function logRamp(f,a,b){ return f<=a?0 : f>=b?1 : Math.log(f/a)/Math.log(b/a); }
+function activeTrebleProfile(){
+  const m=curMeas && frCache.meas[curMeas]; const t=m && m.treble;
+  return (t && t.profiles && t.profiles[t.sel]) || null;
+}
+// What the EQ should add at f according to the profile, tapered to 0 outside the tested bands.
+function trebleCorrAt(prof,f){
+  const pts=prof.bands, f0=pts[0][0], f1=pts[pts.length-1][0];
+  if(f<=TT_X0 || f>=TT_HI) return 0;
+  if(f<f0) return pts[0][1]*logRamp(f,TT_X0,f0);
+  if(f>f1) return pts[pts.length-1][1]*(1-logRamp(f,f1,TT_HI));
+  return interpFR(pts,f);
+}
+// Broad version of a curve: running median over an octave (a narrow coupler peak is under half
+// the window, so it barely moves the median), then a 1/3-octave mean to round off the steps.
+const _smoothCache=new WeakMap();
+function smoothedFR(pts){
+  let out=_smoothCache.get(pts); if(out) return out;
+  const N=480, per=N/Math.log2(1000), hw=Math.round(per/2), hm=Math.round(per/6);
+  const fs=[], raw=[];
+  for(let i=0;i<=N;i++){ const f=20*Math.pow(1000,i/N); fs.push(f); raw.push(interpFR(pts,f)); }
+  const med=raw.map((_,i)=>{ const w=raw.slice(Math.max(0,i-hw), Math.min(N,i+hw)+1).sort((a,b)=>a-b); return w[w.length>>1]; });
+  out=fs.map((f,i)=>{ let s=0,n=0; for(let j=Math.max(0,i-hm); j<=Math.min(N,i+hm); j++){ s+=med[j]; n++; } return [f, s/n]; });
+  _smoothCache.set(pts,out); return out;
+}
+// The measurement as your ear has it: raw below ~5 kHz, smoothed rig level minus your
+// correction above ~6 kHz (a dip where the test asked for a boost).
+function earMeasAt(meas,prof,f){
+  const raw=interpFR(meas,f), w=logRamp(f,TT_X0,TT_X1);
+  return w<=0 ? raw : (1-w)*raw + w*(interpFR(smoothedFR(meas),f) - trebleCorrAt(prof,f));
+}
+// The target as the treble fit aims for it: only its broad shape above ~6 kHz.
+function fitTgtAt(tgt,f){
+  const raw=interpFR(tgt,f), w=logRamp(f,TT_X0,TT_X1);
+  return w<=0 ? raw : (1-w)*raw + w*interpFR(smoothedFR(tgt),f);
+}
+function fitGridErr(prof){             // the correction the EQ should produce
   const meas=frCache.meas[curMeas].points, tgt=tgtRec().points;
   const fs=[], err=[];
-  for(let i=0;i<=FIT_N;i++){ const f=20*Math.pow(1000,i/FIT_N); fs.push(f); err.push(interpFR(tgt,f)-interpFR(meas,f)); }
+  for(let i=0;i<=FIT_N;i++){ const f=20*Math.pow(1000,i/FIT_N); fs.push(f);
+    err.push(prof ? fitTgtAt(tgt,f)-earMeasAt(meas,prof,f) : interpFR(tgt,f)-interpFR(meas,f)); }
   return {fs, err};
 }
 function respExcept(bands,k,fs){
@@ -892,13 +1076,16 @@ function respExcept(bands,k,fs){
   return o;
 }
 function sharpPenalty(b){ return b.q>4 ? 0.0006*(b.q-4)*(b.q-4)*(b.gain*b.gain+1) : 0; }
+// Set by autoFit for the run in progress: the frequency span the loss looks at, and where it
+// switches to matching average energy only.
+let fitRun={ lo:20, hi:20000, avgAbove:10000 };
 function fitLoss(bandK, others, fs, err){
-  const lo=fitCfg.fLow, hi=fitCfg.fHigh;
+  const {lo, hi, avgAbove}=fitRun;
   let se=0, cnt=0, mE=0, mC=0, hc=0;
   for(let i=0;i<fs.length;i++){
     const f=fs[i]; if(f<lo || f>hi) continue;               // only fit within the configured range
     const comb=others[i]+(bandK.gain?magDb(bandK,f):0);
-    if(f>10000){ mE+=err[i]; mC+=comb; hc++; }               // above 10 kHz: average energy only
+    if(f>avgAbove){ mE+=err[i]; mC+=comb; hc++; }            // up top: average energy only
     else { const d=err[i]-comb; se+=d*d; cnt++; }
   }
   let loss=cnt?se/cnt:0; if(hc){ const d=(mE-mC)/hc; loss+=d*d; }
@@ -909,17 +1096,31 @@ function optParam(bands,k,param,lo,hi,fs,err,logScale){
   const set=(v)=>{ if(param==='freq') b.freq=Math.round(clamp(v,lo,hi)); else if(param==='gain') b.gain=clamp(Math.round(v*10)/10,lo,hi); else b.q=clamp(Math.round(v*100)/100,lo,hi); };
   let a=logScale?Math.log(lo):lo, c=logScale?Math.log(hi):hi; const toV=(x)=>logScale?Math.exp(x):x;
   const ev=(x)=>{ set(toV(x)); return fitLoss(b,others,fs,err); };
+  // The loss is bumpy along frequency, so golden-section can settle in a worse dip than the one
+  // the band started in. Only move if it actually helps; otherwise a well-placed band gets
+  // thrown elsewhere and neighbours pile in to compensate (cancelling pairs).
+  const keep=b[param], before=fitLoss(b,others,fs,err);
   const gr=(Math.sqrt(5)-1)/2; let x1=c-gr*(c-a), x2=a+gr*(c-a), f1=ev(x1), f2=ev(x2);
   for(let it=0;it<16;it++){ if(f1<f2){ c=x2; x2=x1; f2=f1; x1=c-gr*(c-a); f1=ev(x1);} else { a=x1; x1=x2; f1=f2; x2=a+gr*(c-a); f2=ev(x2);} }
   set(toV((a+c)/2));
+  if(fitLoss(b,others,fs,err) > before) b[param]=keep;
 }
+// Two ways to spend the bands:
+//   'range'  — fit target vs raw measurement between the bounds, leave the rest flat.
+//   'treble' — fit the whole target with every band, through the treble correction above ~6 kHz.
+//              The profile covers detail up to its top band, so "average energy only" starts
+//              there instead of at 10 kHz.
 function autoFit(){
   if(!curMeas || !tgtRec()) return false;
-  const {fs, err}=fitGridErr();
+  const tm=fitCfg.mode==='treble', prof=tm ? activeTrebleProfile() : null;
+  if(tm && !prof) return 'noprofile';
+  const {fs, err}=fitGridErr(prof);
   const gMax=curGMax();
   const nB=clamp(Math.round(fitCfg.bands)||NB,1,NB);
-  let fLo=Math.max(LIM.fMin, fitCfg.fLow), fHi=Math.min(LIM.fMax, fitCfg.fHigh);
+  let fLo=tm ? LIM.fMin : Math.max(LIM.fMin, fitCfg.fLow), fHi=tm ? LIM.fMax : Math.min(LIM.fMax, fitCfg.fHigh);
   if(fHi<=fLo){ fLo=LIM.fMin; fHi=LIM.fMax; }               // guard against a bad range
+  fitRun = tm ? { lo:LIM.fMin, hi:LIM.fMax, avgAbove:prof.bands[prof.bands.length-1][0]*1.06 }
+              : { lo:fitCfg.fLow, hi:fitCfg.fHigh, avgAbove:10000 };
   // matching-pursuit init: place each band on the biggest remaining error (within range), subtract, repeat
   const bands=[]; const resid=err.slice();
   for(let k=0;k<nB;k++){
@@ -969,6 +1170,231 @@ function importBackup(file){
 }
 function flashBackup(msg){ const el=$('backupMsg'); if(el){ el.textContent=msg; setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; }, 2600); } }
 
+// ---- treble listening test ----
+// Pink noise through the cable. Each trial plays one band on its own as a cue, a short gap,
+// then the full noise with a peaking filter of gain g at that band, and asks whether the band
+// sticks out. An up/down staircase per band homes in on the g where it just starts to: lower
+// where your ear already has a peak, higher where it has a dip. The overall offset (how much
+// boost anyone needs to notice a band) and tilt are removed afterwards; what's left are the
+// band-to-band differences, i.e. your ear's peaks and dips.
+const TT_CUE=1.2, TT_GAP=0.6, TT_FULL=5.0;     // seconds
+const TT_CUE_LVL=2.5, TT_MASTER=0.35;          // cue lifted ~8 dB so a lone band is easy to hear
+const TT_GMIN=-12, TT_GMAX=15;                 // staircase limits, dB
+let cableEq=null;     // the EQ last read from or written to the cable: what the test plays through
+let ttA=null;         // audio graph, built on first use
+let tt=null;          // running test
+let ttTimers=[];
+let ttLen='thorough';
+let ttResult=null;    // finished, not yet saved
+
+function makePink(ctx,secs){
+  // Paul Kellet's refined pink filter on white noise.
+  const n=Math.floor(ctx.sampleRate*secs), buf=ctx.createBuffer(1,n,ctx.sampleRate), d=buf.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(let i=0;i<n;i++){ const w=Math.random()*2-1;
+    b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759; b2=0.96900*b2+w*0.1538520;
+    b3=0.86650*b3+w*0.3104856; b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+    d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6=w*0.115926; }
+  return buf;
+}
+// One looping noise source feeds two paths, cue (bandpass) and full (peaking); trials only move
+// gains and filter settings, so nothing restarts and Web Audio handles the sample rate.
+function ttAudio(){
+  if(ttA) return ttA;
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const src=ctx.createBufferSource(); src.buffer=makePink(ctx,8); src.loop=true;
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+  const pk=ctx.createBiquadFilter(); pk.type='peaking';
+  const cueG=ctx.createGain(), fullG=ctx.createGain(), master=ctx.createGain();
+  cueG.gain.value=0; fullG.gain.value=0; master.gain.value=TT_MASTER;
+  src.connect(bp); bp.connect(cueG); cueG.connect(master);
+  src.connect(pk); pk.connect(fullG); fullG.connect(master);
+  master.connect(ctx.destination); src.start();
+  ttA={ctx,bp,pk,cueG,fullG}; return ttA;
+}
+function ttRamp(node,v,t){ node.gain.cancelScheduledValues(t); node.gain.setTargetAtTime(v,t,0.012); }
+function ttClearTimers(){ ttTimers.forEach(clearTimeout); ttTimers=[]; }
+function ttSilence(){ ttClearTimers(); if(!ttA) return; const t=ttA.ctx.currentTime; ttRamp(ttA.cueG,0,t); ttRamp(ttA.fullG,0,t); }
+function ttHalt(){   // closing the window or the modal: stop sound, drop any test in progress
+  ttSilence(); if(ttA) ttA.ctx.suspend().catch(()=>{});
+  tt=null; ttLevelOn=false; const lv=$('ttLevel'); if(lv) lv.textContent='▶ Level check';
+}
+
+// Level check: the full noise, no band, until clicked again.
+let ttLevelOn=false;
+function ttLevelToggle(){
+  const a=ttAudio(); a.ctx.resume();
+  ttLevelOn=!ttLevelOn; $('ttLevel').textContent = ttLevelOn ? '■ Stop' : '▶ Level check';
+  const t=a.ctx.currentTime;
+  a.pk.gain.setValueAtTime(0,t); ttRamp(a.cueG,0,t); ttRamp(a.fullG,ttLevelOn?1:0,t);
+}
+
+// Staircase: start step 3 dB, halve on every reversal down to 0.5 dB; done after 4 reversals or
+// 10 trials. Threshold = mean of the reversal points after the first.
+function ttStair(f,start){ return { f, g:start, step:3, dir:0, n:0, revs:[], done:false }; }
+function ttStairAnswer(s,heard){
+  const d = heard ? -1 : 1;
+  if(s.dir && d!==s.dir){ s.revs.push(s.g); s.step=Math.max(0.5, s.step/2); }
+  s.dir=d; s.n++;
+  s.g=clamp(s.g+d*s.step, TT_GMIN, TT_GMAX);
+  if(s.revs.length>=4 || s.n>=10) s.done=true;
+}
+function ttStairValue(s){
+  if(s.revs.length>=2){ const r=s.revs.slice(1); return r.reduce((a,b)=>a+b,0)/r.length; }
+  return s.revs.length ? (s.revs[0]+s.g)/2 : s.g;
+}
+// Robust line fit (Theil–Sen) in log-frequency. Robust so one real peak at the end of the range
+// doesn't get read as a tilt and smeared across the other bands.
+function ttDetrend(pts){
+  const xs=pts.map(p=>Math.log2(p[0])), ys=pts.map(p=>p[1]), sl=[];
+  for(let i=0;i<xs.length;i++) for(let j=i+1;j<xs.length;j++) sl.push((ys[j]-ys[i])/(xs[j]-xs[i]));
+  const med=(a)=>{ const s=a.slice().sort((p,q)=>p-q), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+  const b=sl.length?med(sl):0, a=med(ys.map((y,i)=>y-b*xs[i]));
+  return pts.map((p,i)=>[p[0], ys[i]-a-b*xs[i]]);
+}
+function shuffled(a){ const o=a.slice(); for(let i=o.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [o[i],o[j]]=[o[j],o[i]]; } return o; }
+
+function openTreble(){
+  if(!curMeas || !frCache.meas[curMeas]){ openModal('modalFr'); $('frMsg').textContent='Pick the measurement for the IEM you are testing first.'; return; }
+  openModal('modalTreble'); ttView('setup'); renderTrebleSetup();
+}
+function ttView(v){ show('ttSetup',v==='setup'); show('ttRun',v==='run'); show('ttDone',v==='done'); }
+function sameEq(a,b){ return !!a && !!b && JSON.stringify(a.map(x=>[x.freq,x.gain,x.q,x.type]))===JSON.stringify(b.map(x=>[x.freq,x.gain,x.q,x.type])); }
+function renderTrebleSetup(){
+  const m=frCache.meas[curMeas]; const tr=m.treble||{profiles:{}};
+  $('ttSub').textContent=`Personal treble for "${curMeas}", above ~6 kHz.`;
+  const box=$('ttProfiles'); box.innerHTML='';
+  const names=Object.keys(tr.profiles||{});
+  if(!names.length) box.innerHTML='<div class="savedempty">None yet. Run a test to make one.</div>';
+  names.forEach(n=>{ const p=tr.profiles[n];
+    const row=document.createElement('div'); row.className='saved'+(n===tr.sel?' fr-cur':'');
+    row.innerHTML=`<span class="sname">${escHtml(n)}</span><span class="smeta">${escHtml(p.date||'')} · ${p.passes===2?'thorough':'quick'}</span><span class="sdel" title="Delete">✕</span>`;
+    row.onclick=()=>{ tr.sel=n; persistFrs(); renderTrebleSetup(); syncTrebleUI(); };
+    row.querySelector('.sdel').onclick=(e)=>{ e.stopPropagation(); delete tr.profiles[n]; if(tr.sel===n) tr.sel=Object.keys(tr.profiles)[0]||null; persistFrs(); renderTrebleSetup(); syncTrebleUI(); };
+    box.appendChild(row); });
+  document.querySelectorAll('#ttLen button').forEach(b=>b.classList.toggle('on', b.dataset.len===ttLen));
+  // The test measures through whatever is on the cable, so it has to know what that is.
+  let warn='';
+  if(!cableEq) warn='Not sure what EQ is on the cable. Write your EQ first so the test knows what it is playing through.';
+  else if(!sameEq(cableEq,model)) warn='The EQ on screen is not what is on the cable. The test plays through the cable\'s EQ, so write first if you meant to test with this one.';
+  else if(cableEq.some(b=>b.gain && b.freq>5000 && b.type==='PK' && Math.abs(b.gain)>=1)) warn='The cable EQ has bands above 5 kHz. That works, but the result is cleanest with the treble left flat.';
+  $('ttWarn').textContent=warn;
+  show('ttWrite', !!cable && !sameEq(cableEq,model));
+}
+
+function ttStart(){
+  const tip=$('ttTip').value.trim();
+  if(!tip){ $('ttTip').focus(); $('ttWarn').textContent='Name the tip you are using, so the profile can be kept per tip.'; return; }
+  if(ttLevelOn) ttLevelToggle();
+  const eqDuring=(cableEq||model).map(b=>({...b}));
+  const passes = ttLen==='thorough'
+    ? [TT_BANDS.map(f=>ttStair(f,-3)), TT_BANDS.map(f=>ttStair(f,9))]   // from below, then from above
+    : [TT_BANDS.map(f=>ttStair(f,3))];
+  tt={ tip, passes, pass:0, cur:null, last:null, eqDuring, paused:false, asking:false, waitReseat:false };
+  ttView('run'); show('ttReseat',false); show('ttAnswers',true);
+  ttNext();
+}
+function ttProgress(){
+  let done=0,tot=0; for(const p of tt.passes) for(const s of p){ tot+=10; done += s.done ? 10 : Math.min(9,s.n); }
+  $('ttProg').style.width=(100*done/tot).toFixed(1)+'%';
+}
+function ttNext(){
+  if(!tt) return;
+  ttProgress();
+  let open=tt.passes[tt.pass].filter(s=>!s.done);
+  if(!open.length){
+    if(tt.pass+1<tt.passes.length){ tt.pass++; tt.waitReseat=true; tt.asking=false; ttSilence();
+      show('ttAnswers',false); show('ttReseat',true); $('ttFreq').textContent='—'; $('ttPhase').textContent=''; $('ttPhase').className='tt-phase'; $('ttCount').textContent='';
+      return; }
+    return ttFinish();
+  }
+  // random order, but not the same band twice running when there's a choice
+  const pick=shuffled(open).find(s=>s!==tt.last) || open[0];
+  tt.cur=pick; tt.last=pick;
+  ttPlay();
+}
+function ttPlay(){
+  if(!tt || !tt.cur) return;
+  ttClearTimers();
+  const a=ttAudio(); a.ctx.resume();
+  const s=tt.cur, t=a.ctx.currentTime+0.05;
+  tt.asking=false; ttAnswerBtns(false);
+  $('ttCount').textContent = tt.passes.length>1 ? `Pass ${tt.pass+1} of 2` : 'Quick test';
+  $('ttFreq').textContent = (s.f/1000).toFixed(1)+' kHz';
+  $('ttPhase').textContent='Listen: the band on its own'; $('ttPhase').className='tt-phase';
+  for(const p of [a.bp,a.pk]){ p.frequency.setValueAtTime(s.f,t); p.Q.setValueAtTime(TT_Q,t); }
+  a.pk.gain.setValueAtTime(s.g,t);
+  ttRamp(a.fullG,0,t); ttRamp(a.cueG,TT_CUE_LVL,t); ttRamp(a.cueG,0,t+TT_CUE);
+  ttRamp(a.fullG,1,t+TT_CUE+TT_GAP); ttRamp(a.fullG,0,t+TT_CUE+TT_GAP+TT_FULL);
+  ttTimers.push(setTimeout(()=>{ if(tt) $('ttPhase').textContent=''; }, (TT_CUE)*1000+50));
+  ttTimers.push(setTimeout(()=>{ if(!tt) return; tt.asking=true; ttAnswerBtns(true);
+    $('ttPhase').textContent='Does that band stick out of the noise?'; $('ttPhase').className='tt-phase ask'; }, (TT_CUE+TT_GAP)*1000+50));
+}
+function ttAnswerBtns(on){ $('ttYes').disabled=!on; $('ttNo').disabled=!on; }
+function ttAnswer(heard){
+  if(!tt || !tt.asking || tt.paused) return;
+  tt.asking=false; ttAnswerBtns(false); ttSilence();
+  ttStairAnswer(tt.cur, heard);
+  $('ttPhase').textContent=''; $('ttPhase').className='tt-phase';
+  ttTimers.push(setTimeout(ttNext, 700));     // a moment of silence between trials
+}
+function ttReplay(){ if(tt && !tt.paused && !tt.waitReseat) ttPlay(); }
+function ttPauseToggle(){
+  if(!tt || tt.waitReseat) return;
+  tt.paused=!tt.paused; $('ttPause').textContent = tt.paused ? 'Resume' : 'Pause';
+  if(tt.paused){ tt.asking=false; ttSilence(); ttAnswerBtns(false); $('ttPhase').textContent='Paused'; $('ttPhase').className='tt-phase'; }
+  else ttPlay();
+}
+function ttContinue(){ if(!tt) return; tt.waitReseat=false; show('ttReseat',false); show('ttAnswers',true); ttNext(); }
+function ttStop(){ ttHalt(); ttView('setup'); renderTrebleSetup(); }
+function ttFinish(){
+  ttSilence();
+  // threshold per band, averaged over passes
+  const thr=TT_BANDS.map((f,i)=>{ const v=tt.passes.map(p=>ttStairValue(p[i])); return [f, v.reduce((a,b)=>a+b,0)/v.length]; });
+  // Add back the cable EQ that was playing: the profile describes the bare IEM in your ear, so
+  // it stays valid whatever EQ ends up on the cable.
+  const eqAt=(f)=>{ let s=0; for(const b of tt.eqDuring) if(b.gain) s+=magDb(b,f); return s; };
+  const bands=ttDetrend(thr.map(([f,g])=>[f, g+eqAt(f)])).map(([f,c])=>[f, Math.round(clamp(c,-9,6)*10)/10]);
+  // How far apart the two passes landed, as a rough reliability check.
+  const spread = tt.passes.length>1 ? Math.max(...TT_BANDS.map((_,i)=>Math.abs(ttStairValue(tt.passes[0][i])-ttStairValue(tt.passes[1][i])))) : null;
+  ttResult={ tip:tt.tip, bands, thresholds:thr.map(([f,g])=>[f,Math.round(g*10)/10]), passes:tt.passes.length,
+             eqDuring:tt.eqDuring, date:new Date().toISOString().slice(0,10) };
+  tt=null;
+  const box=$('ttRes'); box.innerHTML='';
+  bands.forEach(([f,c])=>{ const d=document.createElement('div');
+    d.innerHTML=`<span>${(f/1000).toFixed(1)}k</span><b style="color:${c>0?'var(--pos)':c<0?'var(--accent)':'var(--faint)'}">${c>0?'+':''}${c.toFixed(1)}</b>`; box.appendChild(d); });
+  $('ttDoneWarn').textContent = spread!=null && spread>4
+    ? `The two passes differed by up to ${spread.toFixed(1)} dB at one band. Fit or concentration may have changed between them; consider running it again.` : '';
+  ttView('done');
+}
+function ttSave(){
+  if(!ttResult || !curMeas || !frCache.meas[curMeas]) return;
+  const m=frCache.meas[curMeas]; m.treble=m.treble||{profiles:{}, sel:null};
+  const {tip,...rest}=ttResult; m.treble.profiles[tip]=rest; m.treble.sel=tip;
+  ttResult=null; trebleView=true; saveTrebleView();
+  persistFrs(); syncTrebleUI(); ttView('setup'); renderTrebleSetup();
+  if(graphMode==='fr') drawGraph();
+  $('ttWarn').textContent='';
+}
+function saveTrebleView(){ try{ localStorage.setItem('dsp-treble-view', trebleView?'1':'0'); }catch(e){} }
+function loadTrebleView(){ try{ trebleView = localStorage.getItem('dsp-treble-view')!=='0'; }catch(e){} }
+// The TREBLE toggle sits beside EQ / FR and only appears in the FR view when there's a profile.
+function syncTrebleUI(){
+  const has=!!activeTrebleProfile(), vis=has && graphMode==='fr';
+  show('trebleView',vis); show('trebleSep',vis);
+  $('trebleView').classList.toggle('on', trebleView);
+  if(!$('modalFitCfg').classList.contains('hidden')) syncFitCfgUI();
+  if(graphMode==='fr') drawGraph();
+}
+function ttKey(e){
+  if($('modalTreble').classList.contains('hidden') || !tt) return;
+  if(e.target && e.target.tagName==='INPUT') return;
+  if(e.key==='ArrowLeft'){ e.preventDefault(); ttAnswer(false); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); ttAnswer(true); }
+  else if(e.key==='r'||e.key==='R'){ e.preventDefault(); ttReplay(); }
+  else if(e.key===' '){ e.preventDefault(); ttPauseToggle(); }
+}
+
 // ---- graph nodes (draggable, layered over the canvas) ----
 let nodeEls=[];
 function renderNodes(){
@@ -1000,7 +1426,7 @@ function nodeHandler(i, el){
       if(first){ pushUndo(); first=false; }
       model[i].freq = clamp(xToF(px), LIM.fMin, LIM.fMax);
       model[i].gain = clamp(Math.round(((1-py)*DB_SPAN+DB_MIN)*10)/10, LIM.gMin, curGMax());
-      updateReadout(i); syncSliders(i); positionNodes(); drawGraph(); updateClip();
+      updateReadout(i); positionNodes(); drawGraph(); updateClip();
     };
     const move=(ev)=>apply(ev);
     const up=()=>{ el.classList.remove('grabbing'); window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
@@ -1010,9 +1436,25 @@ function nodeHandler(i, el){
 }
 
 // ---- band rows ----
-function fToSlider(f){ return Math.round(1000*Math.log10(f/LIM.fMin)/Math.log10(LIM.fMax/LIM.fMin)); }
-function sliderToF(v){ return Math.round(LIM.fMin*Math.pow(LIM.fMax/LIM.fMin, v/1000)); }
-function freqLabel(f){ return f>=1000 ? (f/1000).toFixed(f%1000?1:0)+' kHz' : f+' Hz'; }
+// Values are typed rather than dragged: a slider can't land on 8000 Hz or Q 0.71. Enter or
+// leaving the field commits, Escape reverts, Up/Down nudge (Shift for bigger steps).
+// Frequency takes "8000", "8k" or "8.5 kHz".
+function fmtField(k,v){ return k==='freq' ? String(Math.round(v)) : k==='gain' ? (v>0?'+':'')+v.toFixed(1) : v.toFixed(2); }
+function parseField(k,s){
+  s=String(s).trim().toLowerCase().replace(',','.').replace(/\s+/g,'');
+  if(k==='freq'){ const m=s.match(/^(\d*\.?\d+)(k|khz|hz)?$/); if(!m) return NaN; return parseFloat(m[1])*((m[2]==='k'||m[2]==='khz')?1000:1); }
+  const m=s.replace(/db$|^q/,'').match(/^[+-]?\d*\.?\d+$/); return m ? parseFloat(m[0]) : NaN;
+}
+function setField(b,k,v){
+  if(k==='freq') b.freq=Math.round(clamp(v,LIM.fMin,LIM.fMax));
+  else if(k==='gain') b.gain=clamp(Math.round(v*10)/10,LIM.gMin,curGMax());
+  else b.q=clamp(Math.round(v*100)/100,LIM.qMin,LIM.qMax);
+}
+function nudgeField(b,k,dir,big){
+  if(k==='freq') setField(b,k,b.freq*Math.pow(2,dir*(big?1/6:1/48)) + dir*0.5);   // +0.5 so tiny freqs still move
+  else if(k==='gain') setField(b,k,b.gain+dir*(big?1:0.1));
+  else setField(b,k,b.q+dir*(big?0.1:0.01));
+}
 let rowEls=[];
 function renderBands(){
   const box=$('bands'); box.innerHTML=''; rowEls=[];
@@ -1021,45 +1463,46 @@ function renderBands(){
     row.innerHTML=
       `<div class="chip">${i+1}</div>`+
       `<div class="content">`+
-        `<div class="readout">`+
-          `<span class="rf"></span><span class="rg"></span>`+
-          `<span class="rq"></span><span class="rt" title="Click to change filter type"></span>`+
-        `</div>`+
-        `<div class="sliders">`+
-          `<input type="range" min="0" max="1000" data-k="freq">`+
-          `<input type="range" step="0.1" data-k="gain">`+
-          `<input type="range" min="${LIM.qMin}" max="${LIM.qMax}" step="0.1" data-k="q">`+
-        `</div>`+
+        `<label class="fld f-freq"><input data-k="freq" inputmode="decimal" spellcheck="false" title="Frequency (Hz, or e.g. 8k)"><span>Hz</span></label>`+
+        `<label class="fld"><input data-k="gain" inputmode="decimal" spellcheck="false" title="Gain (dB)"><span>dB</span></label>`+
+        `<label class="fld"><input data-k="q" inputmode="decimal" spellcheck="false" title="Q"><span>Q</span></label>`+
+        `<span class="rt" title="Click to change filter type"></span>`+
       `</div>`;
     row.querySelector('.rt').onclick = ()=>{ pushUndo(); b.type=TYPE_CYCLE[(TYPE_CYCLE.indexOf(b.type)+1)%TYPE_CYCLE.length]; renderAll(); };
-    row.querySelectorAll('input[type=range]').forEach(inp=>{
-      inp.onpointerdown = pushUndo;
-      inp.oninput = ()=>{ const k=inp.dataset.k;
-        if(k==='freq') b.freq=sliderToF(+inp.value);
-        else if(k==='gain') b.gain=clamp(Math.round(+inp.value*10)/10,LIM.gMin,curGMax());
-        else b.q=clamp(Math.round(+inp.value*100)/100,LIM.qMin,LIM.qMax);
-        updateReadout(i); paintSlider(inp); positionNodes(); drawGraph(); updateClip();
+    row.querySelectorAll('.fld input').forEach(inp=>{
+      const k=inp.dataset.k; let undone=false;   // one undo step per visit to the field
+      const changed=()=>{ updateReadout(i, inp); positionNodes(); drawGraph(); updateClip(); };
+      const commit=()=>{ const v=parseField(k,inp.value);
+        if(!isFinite(v)){ inp.value=fmtField(k,b[k]); return; }
+        const before=b[k]; const probe={...b}; setField(probe,k,v);
+        if(probe[k]!==before){ if(!undone){ pushUndo(); undone=true; } b[k]=probe[k]; }
+        inp.value=fmtField(k,b[k]); changed();
+      };
+      inp.onfocus=()=>{ undone=false; requestAnimationFrame(()=>inp.select()); };
+      inp.onchange=commit;
+      inp.onblur=()=>{ commit(); undone=false; };
+      inp.onkeydown=(e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); commit(); inp.select(); }
+        else if(e.key==='Escape'){ e.stopPropagation(); inp.value=fmtField(k,b[k]); inp.blur(); }
+        else if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault();
+          if(!undone){ pushUndo(); undone=true; }
+          nudgeField(b,k,e.key==='ArrowUp'?1:-1,e.shiftKey); inp.value=fmtField(k,b[k]); changed(); }
       };
     });
     box.appendChild(row); rowEls.push(row);
-    updateReadout(i); syncSliders(i);
+    updateReadout(i);
   });
 }
-function updateReadout(i){
+// Refreshes a row from the model. `editing` is the field being typed in, which is left alone.
+function updateReadout(i, editing){
   const row=rowEls[i], b=model[i]; if(!row) return;
   row.classList.toggle('flat', !b.gain);
-  row.querySelector('.rf').textContent=freqLabel(b.freq);
-  const rg=row.querySelector('.rg'); rg.textContent=(b.gain>0?'+':'')+b.gain.toFixed(1);
-  rg.className='rg '+(b.gain===0?'zero':(b.gain>0?'pos':'cut'));
-  row.querySelector('.rq').textContent='Q '+b.q.toFixed(2);
+  row.querySelectorAll('.fld input').forEach(inp=>{
+    const k=inp.dataset.k;
+    if(inp!==editing && document.activeElement!==inp) inp.value=fmtField(k,b[k]);
+    if(k==='gain') inp.className = b.gain===0?'zero':(b.gain>0?'pos':'cut');
+  });
   row.querySelector('.rt').textContent=TYPE_LABEL[b.type]||'PK';
-}
-function syncSliders(i){
-  const row=rowEls[i], b=model[i]; if(!row) return;
-  const f=row.querySelector('[data-k=freq]'), g=row.querySelector('[data-k=gain]'), q=row.querySelector('[data-k=q]');
-  f.value=fToSlider(b.freq); paintSlider(f);
-  g.min=LIM.gMin; g.max=curGMax(); g.value=clamp(b.gain,LIM.gMin,curGMax()); paintSlider(g);
-  q.value=b.q; paintSlider(q);
 }
 function renderAll(){ renderBands(); renderNodes(); syncHiGainUI(); refreshCurve(); }
 
@@ -1186,6 +1629,7 @@ async function readFromCable(){
   try{ const bands=await call(window.dsp.readBank(),'readBank');
     const mdl=bands.map((b,i)=> (b&&b.ok) ? {freq:b.freq,gain:roundGain(b.gain),q:b.q,type:TYPE_CYCLE.includes(b.type)?b.type:'PK'} : blankBand(defaultFreq(i)));
     pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain))); model=fillBands(mdl);
+    cableEq=model.map(b=>({...b}));
     log(`read ${bands.filter(b=>b&&b.ok).length} bands`); renderAll();
   }catch(e){ log('read failed: '+(e&&e.message||e)); showWriteNote('Could not read the EQ from the cable, see the log.'); }
 }
@@ -1238,6 +1682,7 @@ async function doWrite(){
     } else {
       log(`wrote ${r.acked}/54 frames; active=${r.active}`);
     }
+    cableEq=out.map(b=>({...b}));
     await refreshMode();
     btn.textContent='Written ✓'; setTimeout(()=>{btn.textContent='Write to cable';},1400);
   }catch(e){ const m=String(e.message||e);
@@ -1277,13 +1722,14 @@ async function openCable(d){
   }catch(e){ $('connectTitle').textContent='Error opening cable, see log'; }
 }
 async function disconnect(){ try{ await window.dsp.close(); }catch(e){}
-  cable=null; resetCableCaps(); clearWriteNote();
+  cable=null; cableEq=null; resetCableCaps(); clearWriteNote(); closeModal();
   show('workspace',false); show('statusPill',false); show('disconnectBtn',false); show('deviceList',false);
   $('devName').textContent='FreeDSP Studio'; show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
 
 // ---- modals ----
-function openModal(id){ show('overlay',true); ['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalFitCfg'].forEach(m=>show(m, m===id)); }
-function closeModal(){ show('overlay',false); ['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalFitCfg'].forEach(m=>show(m,false)); }
+const MODALS=['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalFitCfg','modalTreble'];
+function openModal(id){ if(id!=='modalTreble') ttHalt(); show('overlay',true); MODALS.forEach(m=>show(m, m===id)); }
+function closeModal(){ ttHalt(); ttResult=null; show('overlay',false); MODALS.forEach(m=>show(m,false)); }
 function flashLink(el,txt){ const o=el.textContent; el.textContent=txt; setTimeout(()=>{el.textContent=o;},1100); }
 
 // ---- theme ----
@@ -1319,6 +1765,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('undoBtn').onclick=undo;
   // preamp
   $('preampSlider').onpointerdown=pushUndo; $('preampSlider').oninput=(e)=>setPreamp(+e.target.value);
+  $('preampVal').onfocus=(e)=>requestAnimationFrame(()=>e.target.select());
+  $('preampVal').onchange=$('preampVal').onblur=(e)=>{ const v=parseField('gain',e.target.value);
+    if(isFinite(v) && Math.round(clamp(v,-20,0)*10)/10!==preamp){ pushUndo(); setPreamp(v); } e.target.value=preamp.toFixed(1); };
+  $('preampVal').onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); } else if(e.key==='Escape'){ e.stopPropagation(); e.target.value=preamp.toFixed(1); e.target.blur(); } };
   $('autoPreampBtn').onclick=()=>{ pushUndo(); const {p}=peak(); setPreamp(p>0? -(Math.ceil(p*10)/10) : 0); };
   $('hiGainBtn').onclick=()=>{ pushUndo(); hiGain=!hiGain; if(!hiGain) model.forEach(b=>{ if(b.gain>LIM.gMax) b.gain=LIM.gMax; }); renderAll(); };
   // saved
@@ -1347,13 +1797,31 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('frClear').onclick=()=>{ curMeas=null; curTgt=null; persistFrs(); renderFrLists(); setGraphMode('eq'); };
   $('frShow').onclick=()=>{ if(!curMeas){ $('frMsg').textContent='Import a measurement first.'; return; } closeModal(); setGraphMode('fr'); };
   $('autoFitBtn').onclick=()=>{ if(!curMeas || !tgtRec()){ openModal('modalFr'); $('frMsg').textContent='Pick a measurement and a target, then Auto-fit.'; return; }
-    autoFit(); setGraphMode('fr'); };
+    if(autoFit()==='noprofile'){ openTreble(); $('ttWarn').textContent='Auto-fit is set to "whole target + treble correction", which needs a treble profile for this measurement. Run the test, or switch the mode in Auto-fit settings.'; return; }
+    setGraphMode('fr'); };
   $('fitCfgBtn').onclick=()=>{ syncFitCfgUI(); openModal('modalFitCfg'); };
   $('fitLow').onchange=()=>{ fitCfg.fLow=clamp(Math.round(+$('fitLow').value)||20,20,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitHigh').onchange=()=>{ fitCfg.fHigh=clamp(Math.round(+$('fitHigh').value)||20000,20,20000); saveFitCfg(); syncFitCfgUI(); };
-  $('fitBands').onchange=()=>{ fitCfg.bands=clamp(Math.round(+$('fitBands').value)||9,1,9); saveFitCfg(); syncFitCfgUI(); };
-  $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:9}; saveFitCfg(); syncFitCfgUI(); };
+  $('fitBands').onchange=()=>{ fitCfg.bands=clamp(Math.round(+$('fitBands').value)||NB,1,NB); saveFitCfg(); syncFitCfgUI(); };
+  $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:NB,mode:'range'}; saveFitCfg(); syncFitCfgUI(); };
+  document.querySelectorAll('#fitMode button').forEach(b=>b.onclick=()=>{ fitCfg.mode=b.dataset.mode; saveFitCfg(); syncFitCfgUI(); });
   $('fitCfgDone').onclick=closeModal;
+  // treble listening test
+  $('linkTreble').onclick=openTreble;
+  $('trebleView').onclick=()=>{ trebleView=!trebleView; saveTrebleView(); syncTrebleUI(); };
+  document.querySelectorAll('#ttLen button').forEach(b=>b.onclick=()=>{ ttLen=b.dataset.len; renderTrebleSetup(); });
+  $('ttLevel').onclick=ttLevelToggle;
+  $('ttStart').onclick=ttStart;
+  $('ttWrite').onclick=async ()=>{
+    if(effPeak().eff>0.1){ $('ttWarn').textContent='This EQ would clip. Set the preamp (Auto headroom) and try again.'; return; }
+    await doWrite(); renderTrebleSetup(); };
+  // answer buttons drop focus, so Space can't "click" the last one pressed
+  const ttBtn=(id,fn)=>{ $(id).onclick=(e)=>{ e.currentTarget.blur(); fn(); }; };
+  ttBtn('ttYes',()=>ttAnswer(true)); ttBtn('ttNo',()=>ttAnswer(false));
+  ttBtn('ttReplay',ttReplay); ttBtn('ttPause',ttPauseToggle); ttBtn('ttContinue',ttContinue); ttBtn('ttStop',ttStop);
+  $('ttSave').onclick=ttSave;
+  $('ttDiscard').onclick=()=>{ ttResult=null; ttView('setup'); renderTrebleSetup(); };
+  window.addEventListener('keydown',ttKey);
   // backup / restore
   $('backupExport').onclick=exportBackup;
   $('backupRestore').onclick=()=>$('backupFile').click();
@@ -1368,11 +1836,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
     doWrite(); };
   // modal close affordances
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);
-  $('overlay').onclick=(e)=>{ if(e.target===$('overlay')) closeModal(); };
-  window.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !$('overlay').classList.contains('hidden')) closeModal(); });
+  $('overlay').onclick=(e)=>{ if(e.target===$('overlay') && !tt && !ttResult) closeModal(); };   // a stray click mustn't end a test
+  window.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !$('overlay').classList.contains('hidden') && !tt) closeModal(); });   // Stop ends a test, not Escape
 
   initSaved();
   initFrs();
+  loadTrebleView();
   loadFitCfg();
   window.addEventListener('resize', drawGraph);
   detect();
