@@ -471,6 +471,7 @@
       <div class="fitnote" id="fitModeNote"></div>
       <div class="fitcfg-row" id="fitLowRow"><label>Low bound</label><input type="number" id="fitLow" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
       <div class="fitcfg-row" id="fitHighRow"><label>High bound</label><input type="number" id="fitHigh" min="20" max="20000" step="10"><span class="muted">Hz</span></div>
+      <div class="fitcfg-row hidden" id="fitTopRow"><label>Upper limit<br><span class="fitnote">Nothing is fitted above this: set it to where your hearing stops.</span></label><input type="number" id="fitTop" min="8000" max="20000" step="500"><span class="muted">Hz</span></div>
       <div class="fitcfg-row"><label>Bands to fit</label><input type="number" id="fitBands" min="1" max="9" step="1"><span class="muted" id="fitBandsOf">of 9</span></div>
     </div>
     <div class="row" style="justify-content:space-between">
@@ -718,7 +719,7 @@ let graphMode = 'eq';                     // 'eq' or 'fr'
 let frCache = { meas:{}, targets:{} };    // name -> {rig, points:[[freq,db]...]}
 let curMeas = null, curTgt = null;        // selected names
 let activeRig = '5128';                   // 5128 / 711 / other — lists are filtered to this so rigs can't mix
-let fitCfg = { fLow:20, fHigh:20000, bands:9, mode:'range' };   // auto-fit mode, bounds + band budget (persisted)
+let fitCfg = { fLow:20, fHigh:20000, bands:9, mode:'range', top:16000 };   // auto-fit mode, bounds, band budget, whole-target upper limit (persisted)
 let preamp = 0;
 let hiGain = false;   // "+6 dB mode", raises the per-band gain cap
 let gCeil = 6;        // ceiling used when +6 dB mode is on
@@ -1012,19 +1013,19 @@ function setGraphMode(m){
 // sharpness penalty and "only average energy above 10 kHz", adapted to our fixed 9 bands and
 // gain limits (SLSQP -> per-parameter golden-section coordinate descent, all in JS).
 const FIT_N = 180;
-function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9, mode:o.mode==='treble'?'treble':'range' }; }catch(e){} syncFitCfgUI(); }
+function loadFitCfg(){ try{ const o=JSON.parse(localStorage.getItem('dsp-fitcfg')||'{}'); fitCfg={ fLow:o.fLow||20, fHigh:o.fHigh||20000, bands:o.bands||9, mode:o.mode==='treble'?'treble':'range', top:o.top||16000 }; }catch(e){} syncFitCfgUI(); }
 function saveFitCfg(){ try{ localStorage.setItem('dsp-fitcfg', JSON.stringify(fitCfg)); }catch(e){} }
 function syncFitCfgUI(){
   if(!$('fitLow')) return;
   $('fitLow').value=fitCfg.fLow; $('fitHigh').value=fitCfg.fHigh; $('fitBands').value=fitCfg.bands;
   const tm=fitCfg.mode==='treble';
   document.querySelectorAll('#fitMode button').forEach(b=>b.classList.toggle('on', b.dataset.mode===fitCfg.mode));
-  show('fitLowRow',!tm); show('fitHighRow',!tm);
+  show('fitLowRow',!tm); show('fitHighRow',!tm); show('fitTopRow',tm); $('fitTop').value=fitCfg.top;
   const prof=activeTrebleProfile();
   $('fitModeNote').innerHTML = !tm
     ? 'Fits the measurement to the target between these bounds and leaves the remaining bands flat. With a 711, a high bound of about 6000 Hz keeps its treble out of the fit.'
     : prof
-      ? `Fits 20 Hz – 20 kHz with every band. Above ~6 kHz the fit uses the smoothed rig level, the target's broad shape and your <b>${escHtml(frCache.meas[curMeas].treble.sel)}</b> treble profile instead of the rig's treble detail.`
+      ? `Fits 20 Hz – ${(fitCfg.top/1000).toFixed(fitCfg.top%1000?1:0)} kHz with every band. Above ~6 kHz the fit uses the smoothed rig level, the target's broad shape and your <b>${escHtml(frCache.meas[curMeas].treble.sel)}</b> treble profile instead of the rig's treble detail.`
       : `Needs a treble profile for this measurement. <a id="fitRunTest">Run the treble test…</a>`;
   const rt=$('fitRunTest'); if(rt) rt.onclick=()=>openTreble();
 }
@@ -1131,9 +1132,10 @@ function autoFit(){
   const {fs, err}=fitGridErr(prof);
   const gMax=curGMax();
   const nB=clamp(Math.round(fitCfg.bands)||NB,1,NB);
-  let fLo=tm ? LIM.fMin : Math.max(LIM.fMin, fitCfg.fLow), fHi=tm ? LIM.fMax : Math.min(LIM.fMax, fitCfg.fHigh);
+  const top=Math.min(LIM.fMax, fitCfg.top||16000);          // whole-target mode: no bands, and no fitting, above this
+  let fLo=tm ? LIM.fMin : Math.max(LIM.fMin, fitCfg.fLow), fHi=tm ? top : Math.min(LIM.fMax, fitCfg.fHigh);
   if(fHi<=fLo){ fLo=LIM.fMin; fHi=LIM.fMax; }               // guard against a bad range
-  fitRun = tm ? { lo:LIM.fMin, hi:LIM.fMax, avgAbove:prof.bands[prof.bands.length-1][0]*1.06 }
+  fitRun = tm ? { lo:LIM.fMin, hi:top, avgAbove:Math.min(top, prof.bands[prof.bands.length-1][0]*1.06) }
               : { lo:fitCfg.fLow, hi:fitCfg.fHigh, avgAbove:10000 };
   // matching-pursuit init: place each band on the biggest remaining error (within range), subtract, repeat
   const bands=[]; const resid=err.slice();
@@ -1942,7 +1944,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('fitLow').onchange=()=>{ fitCfg.fLow=clamp(Math.round(+$('fitLow').value)||20,20,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitHigh').onchange=()=>{ fitCfg.fHigh=clamp(Math.round(+$('fitHigh').value)||20000,20,20000); saveFitCfg(); syncFitCfgUI(); };
   $('fitBands').onchange=()=>{ fitCfg.bands=clamp(Math.round(+$('fitBands').value)||NB,1,NB); saveFitCfg(); syncFitCfgUI(); };
-  $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:NB,mode:'range'}; saveFitCfg(); syncFitCfgUI(); };
+  $('fitTop').onchange=()=>{ fitCfg.top=clamp(Math.round(+$('fitTop').value)||16000,8000,20000); saveFitCfg(); syncFitCfgUI(); };
+  $('fitCfgReset').onclick=()=>{ fitCfg={fLow:20,fHigh:20000,bands:NB,mode:'range',top:16000}; saveFitCfg(); syncFitCfgUI(); };
   document.querySelectorAll('#fitMode button').forEach(b=>b.onclick=()=>{ fitCfg.mode=b.dataset.mode; saveFitCfg(); syncFitCfgUI(); });
   $('fitCfgDone').onclick=closeModal;
   // treble listening test
