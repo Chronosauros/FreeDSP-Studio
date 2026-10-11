@@ -128,6 +128,12 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.5.0
+- **Treble listening test.** A 711 coupler can't be trusted above about 6 kHz, and everyone's ears differ up there anyway, so the treble can now be set by ear through the cable. Two methods: *stands out* (does a band poke out of pink noise?) and *louder / quieter* (match neighbouring bands by level, solved together so small errors don't pile up). Quick or thorough, keyboard driven (arrows, space, R / V, Backspace to undo). Results are kept per IEM and tip
+- Use the result two ways: **Apply to EQ** turns it straight into treble bands in the EQ's flat slots (no measurement needed), or the **whole target + treble correction** auto-fit spends every band over the full range, using the smoothed rig level, the target's broad shape and your profile above ~6 kHz instead of the rig's treble detail, up to an upper limit you set. The FR view's TREBLE switch shows the measurement with and without the correction
+- **New layout.** A datasheet-style header with the connected cable's details, the graph as Fig. 1 and the bands as a table (Table 1), and the workflow as numbered steps: measurement, fit, treble by ear, write. Auto-fit settings are on screen instead of in a dialog; saved EQs open from the header
+- Band frequency, gain and Q, and the preamp, are typed instead of dragged on sliders: `8k`, `-3.5`, `0.71`; arrow keys nudge, Shift for bigger steps
+
 ### 0.4.0
 - Auto-fit rewritten so it lands where squig.link's Auto EQ does. The old fit searched each band's frequency across the whole range with a method that assumes a single minimum, so bands teleported across the spectrum, piled up next to each other and cancelled out. A band now only moves within an octave of where it sits
 - A gain-capped band can no longer drag every following band onto the same frequency, and bands start at or below 10 kHz
