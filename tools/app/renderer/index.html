@@ -1067,6 +1067,7 @@ function setGraphMode(m){
 // configured range the EQ is pushed towards flat rather than fitted to an untrusted measurement.
 const FIT_N = 180;
 const SPILL_W = 0.1;                    // weight of the "stay flat outside the fit range" term
+const STACK_OCT = 1/12;                 // two bands closer than this are one filter's job
 const PRUNE_DB = 0.15;                  // a band must improve the fit by at least this much (dB RMS) to keep its slot
 let fitLo = LIM.fMin, fitHi = LIM.fMax; // effective fit range for the current autoFit() run
 let fitAvgAbove = 10000;                // above this only average energy is matched (the treble profile moves it up)
@@ -1201,7 +1202,7 @@ function autoFit(){
   // band can't leave a residual that drags every following band onto the same frequency. Above the
   // average-energy threshold only the average matters (see fitLoss), so bands start at or below it;
   // refinement can still move them up.
-  const bands=[]; const resid=err.slice();
+  let bands=[]; const resid=err.slice();
   const initHi=(fLo<fitAvgAbove && fHi>fitAvgAbove) ? fitAvgAbove : fHi;
   // Whole-target mode spans the full range, where a narrow treble feature can out-peak a broad bass
   // error that matters more, and the octave-limited refinement can't carry a band back down. There,
@@ -1209,18 +1210,27 @@ function autoFit(){
   // where the residual peaks. Range mode keeps the peak pick, which is what was checked against squig.
   const inRange=fs.map(f=>f>=fLo && f<=fHi);
   const atoms = tm ? fs.map(fc=>(fc<fLo||fc>initHi) ? null : fs.map(f=>magDb({freq:fc,gain:6,q:1.4,type:'PK'},f)/6)) : null;
-  for(let k=0;k<nB;k++){
+  // Where the next band should start, given what's left to correct. In whole-target mode a start
+  // is never within STACK_OCT of an existing band: a narrow feature the wide starting band only
+  // half covers is that band's to narrow into, not a reason to put a second band on top of it.
+  const near=(f)=>bands.some(b=>Math.abs(Math.log2(fs[f]/b.freq))<STACK_OCT);
+  const pick=(r)=>{
     let bi=-1, bv=0;
     if(atoms){
       let best=0;
-      for(let i=0;i<fs.length;i++){ const a=atoms[i]; if(!a) continue;
-        let ra=0, aa=0; for(let j=0;j<fs.length;j++){ if(!inRange[j]) continue; ra+=resid[j]*a[j]; aa+=a[j]*a[j]; }
+      for(let i=0;i<fs.length;i++){ const a=atoms[i]; if(!a || near(i)) continue;
+        let ra=0, aa=0; for(let j=0;j<fs.length;j++){ if(!inRange[j]) continue; ra+=r[j]*a[j]; aa+=a[j]*a[j]; }
         if(aa && ra*ra/aa>best){ best=ra*ra/aa; bi=i; bv=ra/aa; } }
     } else {
-      for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi) continue; if(Math.abs(resid[i])>Math.abs(bv)){ bv=resid[i]; bi=i; } }
+      for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi) continue; if(Math.abs(r[i])>Math.abs(bv)){ bv=r[i]; bi=i; } }
     }
+    return { bi, bv };
+  };
+  const startBand=(bi,bv)=>({ freq:Math.round(clamp(fs[bi],fLo,fHi)), gain:clamp(Math.round(bv*10)/10,LIM.gMin,gMax), q:1.4, type:'PK' });
+  for(let k=0;k<nB;k++){
+    const {bi,bv}=pick(resid);
     if(bi<0 || Math.abs(bv)<0.1) break;                       // nothing left worth a band
-    const band={ freq:Math.round(clamp(fs[bi],fLo,fHi)), gain:clamp(Math.round(bv*10)/10,LIM.gMin,gMax), q:1.4, type:'PK' };
+    const band=startBand(bi,bv);
     bands.push(band);
     const want={ ...band, gain:Math.round(bv*10)/10 };
     for(let i=0;i<fs.length;i++) resid[i]-=magDb(want,fs[i]);
@@ -1231,16 +1241,50 @@ function autoFit(){
     optParam(bands,k,'q',LIM.qMin,LIM.qMax,fs,err);
     optParam(bands,k,'freq',Math.max(fLo,bands[k].freq/2),Math.min(fHi,bands[k].freq*2),fs,err,true);
   } };
-  // drop bands the fit doesn't need (they stay flat for hand use): near-flat ones, then, one at a time,
-  // the band whose removal costs the least, as long as that cost is under PRUNE_DB
-  refine(6);
-  for(let k=bands.length-1;k>=0;k--) if(Math.abs(bands[k].gain)<=0.1) bands.splice(k,1);
-  while(bands.length>1){
-    const base=Math.sqrt(fitLossAll(bands,fs,err)); let bk=-1, bc=Infinity;
-    for(let k=0;k<bands.length;k++){ const c=Math.sqrt(fitLossAll(bands.filter((_,j)=>j!==k),fs,err))-base; if(c<bc){ bc=c; bk=k; } }
-    if(bc>=PRUNE_DB) break;
-    bands.splice(bk,1); refine(1);
-  }
+  // Two bands within STACK_OCT of each other are doing one filter's job. Fold each such pair into
+  // one band (|gain|-weighted centre and width, gains summed, which is what two coincident peaks
+  // add up to), then start the freed band wherever the most error is left and refine again.
+  const mergeStacked=()=>{ let n=0;
+    for(let a=0;a<bands.length;a++) for(let b=bands.length-1;b>a;b--){
+      const A=bands[a], B=bands[b];
+      if(Math.abs(Math.log2(A.freq/B.freq))>=STACK_OCT) continue;
+      const wa=Math.abs(A.gain)||1e-6, wb=Math.abs(B.gain)||1e-6;
+      A.freq=Math.round(Math.exp((wa*Math.log(A.freq)+wb*Math.log(B.freq))/(wa+wb)));
+      A.q=clamp(Math.round((wa*A.q+wb*B.q)/(wa+wb)*100)/100, LIM.qMin, LIM.qMax);
+      A.gain=clamp(Math.round((A.gain+B.gain)*10)/10, LIM.gMin, gMax);
+      bands.splice(b,1); n++;
+    }
+    return n;
+  };
+  const leftover=()=>err.map((e,i)=>{ let c=0; for(const b of bands) if(b.gain) c+=magDb(b,fs[i]); return e-c; });
+  // One finishing run from the starting bands: refine, optionally fold stacked pairs mid-fit and
+  // re-place the freed bands, prune, then fold any pair that is still stacked.
+  const initBands=bands.map(b=>({...b}));
+  const finish=(midMerge)=>{
+    bands=initBands.map(b=>({...b}));
+    refine(6);
+    for(let pass=0; midMerge && pass<3 && mergeStacked(); pass++){
+      while(bands.length<nB){ const {bi,bv}=pick(leftover()); if(bi<0 || Math.abs(bv)<0.1) break; bands.push(startBand(bi,bv)); }
+      refine(3);
+    }
+    // drop bands the fit doesn't need (they stay flat for hand use): near-flat ones, then, one at a time,
+    // the band whose removal costs the least, as long as that cost is under PRUNE_DB
+    for(let k=bands.length-1;k>=0;k--) if(Math.abs(bands[k].gain)<=0.1) bands.splice(k,1);
+    while(bands.length>1){
+      const base=Math.sqrt(fitLossAll(bands,fs,err)); let bk=-1, bc=Infinity;
+      for(let k=0;k<bands.length;k++){ const c=Math.sqrt(fitLossAll(bands.filter((_,j)=>j!==k),fs,err))-base; if(c<bc){ bc=c; bk=k; } }
+      if(bc>=PRUNE_DB) break;
+      bands.splice(bk,1); refine(1);
+    }
+    if(mergeStacked()) refine(1);          // refinement can pull two together again; last word on it
+    mergeStacked();
+    return { set:bands, loss:fitLossAll(bands,fs,err) };
+  };
+  // Range mode keeps v0.4.0's path (pruning tidies most stacks itself; the last fold gets the rest).
+  // Whole-target mode stacks more, so it also tries folding mid-fit and keeps whichever fits better.
+  let best=finish(false);
+  if(tm){ const alt=finish(true); if(alt.loss<best.loss) best=alt; }
+  bands=best.set;
   bands.sort((a,b)=>a.freq-b.freq);
   pushUndo();
   model=fillBands(bands);
