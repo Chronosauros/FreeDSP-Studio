@@ -1336,9 +1336,12 @@ function autoFit(){
   // where the residual peaks. Range mode keeps the peak pick, which is what was checked against squig.
   const inRange=fs.map(f=>f>=fLo && f<=fHi);
   const atoms = tm ? fs.map(fc=>(fc<fLo||fc>initHi) ? null : fs.map(f=>magDb({freq:fc,gain:6,q:1.4,type:'PK'},f)/6)) : null;
-  // Where the next band should start, given what's left to correct. In whole-target mode a start
-  // is never within STACK_OCT of an existing band: a narrow feature the wide starting band only
-  // half covers is that band's to narrow into, not a reason to put a second band on top of it.
+  // Where the next band should start, given what's left to correct. A start is never within
+  // STACK_OCT of an existing band: a narrow feature the wide starting band only half covers is that
+  // band's to narrow into, not a reason to put a second band on top of it. Range mode used to allow
+  // it, and a sharp peak/dip pair the range took in (6-7 kHz on a Xenns Top Pro vs a Dusk) drew
+  // every band onto itself: fit to 10 kHz, all ten started there, folded into five, and the bass
+  // was left worse than with no EQ while squig.link's own autoeq fixed it.
   const near=(f)=>bands.some(b=>Math.abs(Math.log2(fs[f]/b.freq))<STACK_OCT);
   const pick=(r)=>{
     let bi=-1, bv=0;
@@ -1348,7 +1351,7 @@ function autoFit(){
         let ra=0, aa=0; for(let j=0;j<fs.length;j++){ if(!inRange[j]) continue; ra+=r[j]*a[j]; aa+=a[j]*a[j]; }
         if(aa && ra*ra/aa>best){ best=ra*ra/aa; bi=i; bv=ra/aa; } }
     } else {
-      for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi) continue; if(Math.abs(r[i])>Math.abs(bv)){ bv=r[i]; bi=i; } }
+      for(let i=0;i<fs.length;i++){ if(fs[i]<fLo||fs[i]>initHi||near(i)) continue; if(Math.abs(r[i])>Math.abs(bv)){ bv=r[i]; bi=i; } }
     }
     return { bi, bv };
   };
@@ -1409,10 +1412,10 @@ function autoFit(){
     mergeStacked();
     return { set:bands, loss:fitLossAll(bands,fs,err) };
   };
-  // Range mode keeps v0.4.0's path (pruning tidies most stacks itself; the last fold gets the rest).
-  // Whole-target mode stacks more, so it also tries folding mid-fit and keeps whichever fits better.
+  // Both modes also try folding stacked pairs mid-fit, re-placing the freed bands where the most
+  // error is left, and keep whichever run fits better.
   let best=finish(false);
-  if(tm){ const alt=finish(true); if(alt.loss<best.loss) best=alt; }
+  { const alt=finish(true); if(alt.loss<best.loss) best=alt; }
   bands=best.set;
   bands.sort((a,b)=>a.freq-b.freq);
   pushUndo();
@@ -2052,10 +2055,10 @@ function splitChannel(fileName){
   const c=(m[2]||m[3]).toUpperCase();
   return { base:m[1].trim(), ch: c==='1'||c==='L'||c==='LEFT' ? 'L' : 'R' };
 }
-// Squig plots the left/right average, in dB, so dropping both channels gives the same curve.
-// Averaged on the first file's frequency points.
+// Squig plots the left/right average (of amplitude, then back to dB), so dropping both channels
+// gives the same curve. Averaged on the first file's frequency points.
 function averageFR(curves){
-  return curves[0].map(([f])=>[f, curves.reduce((s,c)=>s+interpFR(c,f),0)/curves.length]);
+  return curves[0].map(([f])=>[f, 20*Math.log10(curves.reduce((s,c)=>s+Math.pow(10,interpFR(c,f)/20),0)/curves.length)]);
 }
 async function handleDrop(files){
   const list=Array.from(files||[]); if(!list.length) return;
