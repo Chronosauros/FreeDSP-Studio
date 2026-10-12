@@ -139,6 +139,9 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.6.2
+- Dropping both channels of a measurement together (squig's "Name [1].txt" and "Name [2].txt", or L/R) now adds one curve averaged the way squig.link plots it, so an auto-fit made in the app matches what squig shows. A single channel dropped alone is still added, with a note that it isn't the average
+
 ### 0.6.1
 - Fix: BTR17 writes could lose bands at the next power-off. The BTR17 saves each band to flash as it arrives, but skips any that arrive less than about 50 ms after the previous one, and 0.6.0 sent them 20 ms apart, so bands 5 and 9 of every write were kept only until the device was switched off. Bands are now sent 150 ms apart, and every write is checked against what the device actually saved, by switching to another bank and back (which reloads the saved copy), instead of against its working copy. You'll hear the other bank for a moment. **If you wrote banks with 0.6.0, write them again**: Write all will find the ones that no longer match
 
