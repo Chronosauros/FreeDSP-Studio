@@ -1,0 +1,517 @@
+// FiiO DSP wire protocol — platform-free.
+//
+// FiiO's dongles and Bluetooth receivers (BTR17 so far) speak a protocol of their own, shared
+// with JadeAudio and SnowSky parts and unrelated to either Moondrop generation. Unlike both of
+// those, the device does its own filter maths: the host sends freq / gain / Q / type and the
+// DSP designs the biquad. So there are no coefficients here, and gain is a real 0.1 dB value
+// rather than a label sitting beside them.
+//
+// Wire format — HID report 7, 32-byte input and output reports on the interrupt endpoints:
+//
+//     byte 0   AA (set) / BB (get)
+//     byte 1   0A (set) / 0B (get)
+//     byte 2-3 sequence number, big-endian
+//     byte 4   CMD
+//     byte 5   LEN — payload length
+//     byte 6.. payload, then a CRC-8 over everything before it, then EE
+//
+// Replies come back as input reports headed BB 0B with the CMD echoed at byte 4. They don't
+// echo the sequence number and carry a zero checksum, so the only thing to pair a reply with
+// its request is CMD, plus the band index for band reads.
+//
+// The device holds a set of EQ banks: factory voicings, ten USER banks and a bypass slot. Band
+// writes always land on whichever bank is active, so writing a given bank means selecting it
+// first. Everything below was checked against a real BTR17 rather than taken on trust from
+// FiiO's web app, which is where the timing rules came from: see `set_preset`.
+
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
+
+use serde::Serialize;
+
+use crate::dsp::{Band, BandIn, WriteResult};
+
+/// FiiO's two USB vendor ids.
+pub const VIDS: [u16; 2] = [0x2972, 0x0A12];
+pub const REPORT_ID: u8 = 7;
+/// Report length, report id excluded.
+pub const REPORT_LEN: usize = 32;
+
+const SET: [u8; 2] = [0xAA, 0x0A];
+const GET: [u8; 2] = [0xBB, 0x0B];
+const END: u8 = 0xEE;
+
+const CMD_BAND: u8 = 0x15;
+const CMD_PRESET: u8 = 0x16;
+const CMD_GLOBAL_GAIN: u8 = 0x17;
+const CMD_SAVE: u8 = 0x19;
+
+// The only commands this file will ever send as a *set*. FiiO's own app names 0x21
+// RESET_TO_FACTORY, and at least one third-party tool sends 0x21 as "save" on this very
+// device, so the whitelist is the guarantee rather than care at each call site.
+const SETTABLE: [u8; 4] = [CMD_BAND, CMD_PRESET, CMD_GLOBAL_GAIN, CMD_SAVE];
+
+// Timing, measured on a BTR17. Replies arrive in ~4 ms, so the timeout is generous headroom.
+const REPLY_TIMEOUT_MS: u64 = 250;
+const DELAY_BAND_MS: u64 = 20;
+const DELAY_SAVE_MS: u64 = 300;
+// After a bank switch the active-bank register updates within ~35 ms, but band reads keep
+// returning the *previous* bank's data for 0.35–0.7 s. FiiO's web app reads straight after
+// switching and shows the wrong EQ. This waits past the measured worst case; `read_bank`'s
+// read-twice check then catches anything slower.
+const DELAY_SETTLE_MS: u64 = 900;
+const SWITCH_TIMEOUT_MS: u64 = 1500;
+
+/// One FiiO device, opened. Interrupt OUT and IN, like gen-2, so the read is filtered and timed
+/// out by the protocol layer rather than the transport.
+pub trait TransportFiio {
+    /// Sends one frame (report id excluded; the transport adds it and pads the report).
+    fn send(&self, frame: &[u8]) -> bool;
+    /// Waits up to `timeout_ms` for one input report on REPORT_ID, report id stripped.
+    fn recv(&self, timeout_ms: u64) -> Option<Vec<u8>>;
+    /// Throws away input reports still queued from an earlier request.
+    fn drain(&self);
+}
+
+// ---- device profiles ----
+
+/// What a given FiiO model can do. Only models checked on hardware get one; anything else
+/// is refused rather than guessed at, since bank numbering differs per model (the KA15's
+/// USER banks are 7-9, the BTR17's are 160-169).
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Profile {
+    pub name: String,
+    pub bands: usize,
+    pub gain_min: f64,
+    pub gain_max: f64,
+    pub q_min: f64,
+    pub q_max: f64,
+    pub types: Vec<String>,
+    /// Every bank the device has, keyed by bank number.
+    pub presets: BTreeMap<u8, String>,
+    /// The banks that can be written. Factory voicings and bypass can't.
+    pub user_slots: Vec<u8>,
+}
+
+pub fn profile(_vid: u16, pid: u16, product: &str) -> Option<Profile> {
+    let name = if product.is_empty() { "FiiO device".to_string() } else { product.to_string() };
+    match pid {
+        // BTR17. Ten bands, -24/+12 dB, peaking and both shelves; Q range is FiiO's own.
+        // USER n is bank 159 + n.
+        0x0088 => {
+            let mut presets: BTreeMap<u8, String> = [
+                (0, "Jazz"),
+                (1, "Pop"),
+                (2, "Rock"),
+                (3, "Dance"),
+                (4, "R&B"),
+                (5, "Classic"),
+                (6, "Hip-hop"),
+            ]
+            .iter()
+            .map(|(k, v)| (*k, v.to_string()))
+            .collect();
+            let user_slots: Vec<u8> = (160..=169).collect();
+            for (i, s) in user_slots.iter().enumerate() {
+                presets.insert(*s, format!("USER{}", i + 1));
+            }
+            presets.insert(240, "Bypass".into());
+            Some(Profile {
+                name,
+                bands: 10,
+                gain_min: -24.0,
+                gain_max: 12.0,
+                q_min: 0.25,
+                q_max: 8.0,
+                types: vec!["PK".into(), "LSQ".into(), "HSQ".into()],
+                presets,
+                user_slots,
+            })
+        }
+        _ => None,
+    }
+}
+
+// ---- frames ----
+
+fn crc8(bytes: &[u8]) -> u8 {
+    // Dallas/Maxim CRC-8 (reflected polynomial 0x8C), which is what FiiO's table works out to.
+    let mut c = 0u8;
+    for &b in bytes {
+        let mut x = c ^ b;
+        for _ in 0..8 {
+            x = if x & 1 != 0 { (x >> 1) ^ 0x8C } else { x >> 1 };
+        }
+        c = x;
+    }
+    c
+}
+
+static SEQ: AtomicU16 = AtomicU16::new(0);
+
+fn frame(head: [u8; 2], cmd: u8, payload: &[u8]) -> Vec<u8> {
+    frame_seq(SEQ.fetch_add(1, Ordering::Relaxed), head, cmd, payload)
+}
+
+fn frame_seq(seq: u16, head: [u8; 2], cmd: u8, payload: &[u8]) -> Vec<u8> {
+    let mut b = vec![head[0], head[1], (seq >> 8) as u8, seq as u8, cmd, payload.len() as u8];
+    b.extend_from_slice(payload);
+    b.push(crc8(&b));
+    b.push(END);
+    b
+}
+
+/// Sends a set. Refuses anything outside SETTABLE.
+fn send_set<T: TransportFiio + ?Sized>(dev: &T, cmd: u8, payload: &[u8]) -> bool {
+    if !SETTABLE.contains(&cmd) {
+        return false;
+    }
+    dev.send(&frame(SET, cmd, payload))
+}
+
+/// The payload of a reply to `cmd`, if `r` is one.
+fn reply_payload(r: &[u8], cmd: u8) -> Option<&[u8]> {
+    if r.len() < 6 || r[0..2] != GET || r[4] != cmd {
+        return None;
+    }
+    r.get(6..6 + r[5] as usize)
+}
+
+/// Asks a question and waits for the matching answer. `accept` sees the reply payload and
+/// decides whether it answers *this* request (band reads check the echoed index).
+fn request<T: TransportFiio + ?Sized>(
+    dev: &T,
+    cmd: u8,
+    payload: &[u8],
+    accept: impl Fn(&[u8]) -> bool,
+) -> Option<Vec<u8>> {
+    for _ in 0..2 {
+        dev.drain();
+        if !dev.send(&frame(GET, cmd, payload)) {
+            continue;
+        }
+        let deadline = Instant::now() + Duration::from_millis(REPLY_TIMEOUT_MS);
+        while Instant::now() < deadline {
+            let left = deadline.saturating_duration_since(Instant::now()).as_millis() as u64;
+            let Some(r) = dev.recv(left.max(1)) else { break };
+            if let Some(p) = reply_payload(&r, cmd) {
+                if accept(p) {
+                    return Some(p.to_vec());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn s16(hi: u8, lo: u8) -> i16 {
+    i16::from_be_bytes([hi, lo])
+}
+
+fn type_code(t: &str) -> u8 {
+    match t {
+        "LSQ" => 1,
+        "HSQ" => 2,
+        "BP" => 3,
+        "LP" => 4,
+        "HP" => 5,
+        "AP" => 6,
+        _ => 0,
+    }
+}
+
+fn type_name(c: u8) -> &'static str {
+    match c {
+        1 => "LSQ",
+        2 => "HSQ",
+        3 => "BP",
+        4 => "LP",
+        5 => "HP",
+        6 => "AP",
+        _ => "PK",
+    }
+}
+
+// ---- reads ----
+
+/// The active bank. Doubles as the FiiO handshake: it answers even with the device's EQ
+/// switched off, when nothing else does.
+pub fn read_preset<T: TransportFiio + ?Sized>(dev: &T) -> Option<u8> {
+    request(dev, CMD_PRESET, &[], |p| !p.is_empty()).map(|p| p[0])
+}
+
+/// The active bank's global gain, which is what the app calls preamp. It is stored per bank.
+pub fn read_gain<T: TransportFiio + ?Sized>(dev: &T) -> Option<f64> {
+    request(dev, CMD_GLOBAL_GAIN, &[], |p| p.len() >= 2).map(|p| s16(p[0], p[1]) as f64 / 10.0)
+}
+
+/// (freq, gain, q, type code) of one band of the active bank.
+type RawBand = (u16, f64, f64, u8);
+
+fn read_band<T: TransportFiio + ?Sized>(dev: &T, i: u8) -> Option<RawBand> {
+    let p = request(dev, CMD_BAND, &[i], |p| p.len() >= 8 && p[0] == i)?;
+    Some((
+        u16::from_be_bytes([p[3], p[4]]),
+        s16(p[1], p[2]) as f64 / 10.0,
+        u16::from_be_bytes([p[5], p[6]]) as f64 / 100.0,
+        p[7],
+    ))
+}
+
+fn read_raw<T: TransportFiio + ?Sized>(dev: &T, n: usize) -> Vec<Option<RawBand>> {
+    (0..n).map(|i| read_band(dev, i as u8)).collect()
+}
+
+const EQ_OFF: &str = "isn't sharing its EQ, which is what it does with EQ switched off. Turn EQ on in its settings, then read again.";
+
+/// Reads the active bank, twice, and only returns once two reads agree — a bank switch made
+/// on the device itself has the same stale-data window as one made from here.
+pub fn read_bank<T: TransportFiio + ?Sized>(dev: &T, p: &Profile) -> Result<Vec<Band>, String> {
+    if read_band(dev, 0).is_none() {
+        return Err(if read_preset(dev).is_some() {
+            format!("The {} {}", p.name, EQ_OFF)
+        } else {
+            format!("{} is no longer connected.", p.name)
+        });
+    }
+    let mut prev = read_raw(dev, p.bands);
+    for _ in 0..5 {
+        let next = read_raw(dev, p.bands);
+        if next == prev {
+            break;
+        }
+        sleep(Duration::from_millis(250));
+        prev = next;
+    }
+    Ok(prev
+        .into_iter()
+        .enumerate()
+        .map(|(i, b)| match b {
+            Some((freq, gain, q, typ)) => Band {
+                ok: true,
+                band: (i + 1) as u8,
+                freq: freq as i32,
+                gain,
+                q,
+                typ: type_name(typ).to_string(),
+            },
+            None => Band { ok: false, band: (i + 1) as u8, freq: 0, gain: 0.0, q: 0.0, typ: "PK".into() },
+        })
+        .collect())
+}
+
+// ---- writes ----
+
+/// Switches the active bank, waits for the device to confirm it, then waits out the window in
+/// which band reads still return the old bank. Returns the bank the device reports.
+pub fn set_preset<T: TransportFiio + ?Sized>(dev: &T, p: &Profile, slot: u8) -> Result<Option<i32>, String> {
+    if !p.presets.contains_key(&slot) {
+        return Err(format!("The {} has no bank {}.", p.name, slot));
+    }
+    // A switch sends no acknowledgement; reading the bank back is the confirmation.
+    send_set(dev, CMD_PRESET, &[slot]);
+    let deadline = Instant::now() + Duration::from_millis(SWITCH_TIMEOUT_MS);
+    let mut now = read_preset(dev);
+    while now != Some(slot) && Instant::now() < deadline {
+        sleep(Duration::from_millis(50));
+        now = read_preset(dev);
+    }
+    if now == Some(slot) {
+        sleep(Duration::from_millis(DELAY_SETTLE_MS));
+    }
+    Ok(now.map(|s| s as i32))
+}
+
+fn band_payload(i: u8, b: &BandIn) -> [u8; 8] {
+    let freq = b.freq.round().clamp(20.0, 20000.0) as u16;
+    let gain = (b.gain * 10.0).round().clamp(-32768.0, 32767.0) as i16;
+    let q = (b.q * 100.0).round().clamp(1.0, 65535.0) as u16;
+    let [gh, gl] = gain.to_be_bytes();
+    let [fh, fl] = freq.to_be_bytes();
+    let [qh, ql] = q.to_be_bytes();
+    [i, gh, gl, fh, fl, qh, ql, type_code(&b.typ)]
+}
+
+fn same_band(got: &RawBand, want: &BandIn) -> bool {
+    let p = band_payload(0, want);
+    got.0 == u16::from_be_bytes([p[3], p[4]])
+        && (got.1 - s16(p[1], p[2]) as f64 / 10.0).abs() < 0.05
+        // The BTR17 stores Q a little coarser than the 0.01 steps it is sent in, so some values
+        // read back one step low (1.18 as 1.17). That is under 1% and inaudible, not a failed write.
+        && (got.2 - u16::from_be_bytes([p[5], p[6]]) as f64 / 100.0).abs() < 0.02
+        && got.3 == p[7]
+}
+
+/// Writes the whole bank to the active USER bank, saves it, and reads it back.
+///
+/// Band writes are one-way, so `acked` is the number of bands the device is holding
+/// afterwards, as on gen-2. Edits on a BTR17 turned out to survive a restart even unsaved;
+/// the save is sent anyway, as FiiO's app does, in case that only holds for a clean shutdown.
+pub fn write_bank<T: TransportFiio + ?Sized>(
+    dev: &T,
+    p: &Profile,
+    bands: &[BandIn],
+    preamp: f64,
+) -> Result<WriteResult, String> {
+    let slot = read_preset(dev).ok_or_else(|| format!("{} is no longer connected. Nothing was written.", p.name))?;
+    if !p.user_slots.contains(&slot) {
+        let name = p.presets.get(&slot).cloned().unwrap_or_else(|| format!("bank {}", slot));
+        return Err(format!(
+            "The {} is on {}, which can't be overwritten. Pick a USER bank first. Nothing was written.",
+            p.name, name
+        ));
+    }
+
+    let bands: Vec<&BandIn> = bands.iter().take(p.bands).collect();
+    for (i, b) in bands.iter().enumerate() {
+        send_set(dev, CMD_BAND, &band_payload(i as u8, b));
+        sleep(Duration::from_millis(DELAY_BAND_MS));
+    }
+    let gain = (preamp.clamp(p.gain_min, p.gain_max) * 10.0).round() as i16;
+    send_set(dev, CMD_GLOBAL_GAIN, &gain.to_be_bytes());
+    sleep(Duration::from_millis(DELAY_BAND_MS));
+    send_set(dev, CMD_SAVE, &[slot]);
+    sleep(Duration::from_millis(DELAY_SAVE_MS));
+
+    let back = read_raw(dev, bands.len());
+    let acked = back
+        .iter()
+        .zip(&bands)
+        .filter(|(got, want)| got.as_ref().is_some_and(|g| same_band(g, want)))
+        .count() as u32;
+    let gain_back = read_gain(dev);
+    if acked as usize == bands.len() && gain_back.map(|g| (g - gain as f64 / 10.0).abs() > 0.05).unwrap_or(true) {
+        return Err(format!(
+            "The bands were written, but the {}'s preamp reads back as {} instead of {:.1} dB.",
+            p.name,
+            gain_back.map(|g| format!("{:.1} dB", g)).unwrap_or_else(|| "nothing".into()),
+            gain as f64 / 10.0
+        ));
+    }
+    Ok(WriteResult { acked, active: Some(slot as i32) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::collections::VecDeque;
+
+    // FiiO's own CRC table starts 0, 94, 188, 226 … — the Dallas/Maxim CRC-8.
+    #[test]
+    fn crc_matches_fiios_table() {
+        let first: Vec<u8> = (0u8..8).map(|i| crc8(&[i])).collect();
+        assert_eq!(first, vec![0, 94, 188, 226, 97, 63, 221, 131]);
+    }
+
+    // Frames captured from the probe session against a real BTR17, which accepted them.
+    #[test]
+    fn frames_match_what_the_device_accepted() {
+        let f = frame_seq;
+        assert_eq!(f(1, GET, CMD_PRESET, &[]), vec![0xbb, 0x0b, 0x00, 0x01, 0x16, 0x00, 0x62, 0xee]);
+        assert_eq!(f(3, GET, 0x18, &[]), vec![0xbb, 0x0b, 0x00, 0x03, 0x18, 0x00, 0xf1, 0xee]);
+        assert_eq!(f(2, GET, CMD_BAND, &[0]), vec![0xbb, 0x0b, 0x00, 0x02, 0x15, 0x01, 0x00, 0x71, 0xee]);
+    }
+
+    // Band 5 of USER10 as the device sent it: 5 kHz, -1.5 dB, Q 0.71, high shelf.
+    #[test]
+    fn band_payload_round_trips_a_real_band() {
+        let b = BandIn { freq: 5000.0, gain: -1.5, q: 0.71, typ: "HSQ".into() };
+        let p = band_payload(4, &b);
+        assert_eq!(p, [0x04, 0xff, 0xf1, 0x13, 0x88, 0x00, 0x47, 0x02]);
+        assert_eq!(s16(p[1], p[2]), -15);
+    }
+
+    #[test]
+    fn factory_reset_and_other_unlisted_sets_are_refused() {
+        struct Spy(RefCell<Vec<Vec<u8>>>);
+        impl TransportFiio for Spy {
+            fn send(&self, f: &[u8]) -> bool { self.0.borrow_mut().push(f.to_vec()); true }
+            fn recv(&self, _: u64) -> Option<Vec<u8>> { None }
+            fn drain(&self) {}
+        }
+        let spy = Spy(RefCell::new(vec![]));
+        for cmd in [0x21u8, 0x1B, 0x1C, 0x18, 0x30] {
+            assert!(!send_set(&spy, cmd, &[0]), "cmd {cmd:#x} must not be sendable");
+        }
+        assert!(spy.0.borrow().is_empty());
+        assert!(send_set(&spy, CMD_SAVE, &[160]));
+    }
+
+    // A fake BTR17: replies queue up, and a leftover reply to a different band must not be
+    // taken as the answer.
+    struct Fake {
+        queued: RefCell<VecDeque<Vec<u8>>>,
+        bands: Vec<RawBand>,
+        sent: RefCell<Vec<Vec<u8>>>,
+    }
+    impl Fake {
+        fn reply(cmd: u8, payload: &[u8]) -> Vec<u8> {
+            let mut r = vec![0xBB, 0x0B, 0, 0, cmd, payload.len() as u8];
+            r.extend_from_slice(payload);
+            r.extend_from_slice(&[0, 0xEE]);
+            r
+        }
+    }
+    impl TransportFiio for Fake {
+        fn send(&self, f: &[u8]) -> bool {
+            self.sent.borrow_mut().push(f.to_vec());
+            if f[0] == 0xBB && f[4] == CMD_BAND {
+                let i = f[6] as usize;
+                let (freq, gain, q, t) = self.bands[i];
+                let [gh, gl] = ((gain * 10.0) as i16).to_be_bytes();
+                let [fh, fl] = freq.to_be_bytes();
+                let [qh, ql] = ((q * 100.0).round() as u16).to_be_bytes();
+                // A stale answer for the next band arrives first.
+                let j = (i + 1) % self.bands.len();
+                self.queued.borrow_mut().push_back(Fake::reply(CMD_BAND, &[j as u8, 0, 0, 0, 0, 0, 0, 0]));
+                self.queued.borrow_mut().push_back(Fake::reply(CMD_BAND, &[i as u8, gh, gl, fh, fl, qh, ql, t]));
+            }
+            true
+        }
+        fn recv(&self, _: u64) -> Option<Vec<u8>> { self.queued.borrow_mut().pop_front() }
+        fn drain(&self) {}
+    }
+
+    #[test]
+    fn band_reads_ignore_replies_for_other_bands() {
+        let p = profile(0x2972, 0x0088, "FIIO BTR17").unwrap();
+        let mut bands: Vec<RawBand> = (0..10).map(|i| (100 * (i + 1), 0.0, 0.71, 0)).collect();
+        bands[4] = (5000, -1.5, 0.71, 2);
+        let fake = Fake { queued: RefCell::new(VecDeque::new()), bands, sent: RefCell::new(vec![]) };
+        let got = read_bank(&fake, &p).unwrap();
+        assert_eq!(got.len(), 10);
+        assert!(got.iter().all(|b| b.ok));
+        assert_eq!((got[4].freq, got[4].gain, got[4].typ.as_str()), (5000, -1.5, "HSQ"));
+        assert_eq!(got[0].freq, 100);
+        // Reads only: nothing headed AA (a set) went out.
+        assert!(fake.sent.borrow().iter().all(|f| f[0] == 0xBB));
+    }
+
+    // Q values the BTR17 actually returned one step low after a write, from a real bank.
+    // They must count as written; a wrong gain, frequency or type still must not.
+    #[test]
+    fn read_back_tolerates_the_devices_q_rounding() {
+        let want = |freq: f64, gain: f64, q: f64| BandIn { freq, gain, q, typ: "PK".into() };
+        assert!(same_band(&(20, 2.0, 1.17, 0), &want(20.0, 2.0, 1.18)));
+        assert!(same_band(&(86, 2.3, 1.05, 0), &want(86.0, 2.3, 1.06)));
+        assert!(same_band(&(161, 1.2, 2.11, 0), &want(161.0, 1.2, 2.12)));
+        assert!(!same_band(&(161, 1.2, 2.05, 0), &want(161.0, 1.2, 2.12)));
+        assert!(!same_band(&(161, 1.1, 2.12, 0), &want(161.0, 1.2, 2.12)));
+        assert!(!same_band(&(160, 1.2, 2.12, 0), &want(161.0, 1.2, 2.12)));
+        assert!(!same_band(&(161, 1.2, 2.12, 2), &want(161.0, 1.2, 2.12)));
+    }
+
+    #[test]
+    fn btr17_banks_are_numbered_from_160() {
+        let p = profile(0x2972, 0x0088, "FIIO BTR17").unwrap();
+        assert_eq!(p.presets[&160], "USER1");
+        assert_eq!(p.presets[&166], "USER7");
+        assert_eq!(p.presets[&169], "USER10");
+        assert!(!p.user_slots.contains(&0) && !p.user_slots.contains(&240));
+        assert!(profile(0x2972, 0x1234, "something else").is_none());
+    }
+}

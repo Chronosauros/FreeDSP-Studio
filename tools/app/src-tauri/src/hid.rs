@@ -7,6 +7,8 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::dsp;
 use crate::dsp2;
+use crate::dsp_fiio;
+use crate::hid_fiio;
 use crate::hid_gen2;
 
 pub use crate::dsp::{Band, BandIn, CableInfo, WriteResult};
@@ -86,9 +88,16 @@ struct Expected {
     vid: u16,
     pid: u16,
     name: String,
-    /// None for gen-1; the cable's capabilities for gen-2. Every gen-2 op needs it, and it
-    /// is what tells the two dispatch paths apart.
-    profile: Option<dsp2::Profile>,
+    kind: Kind,
+}
+
+/// Which protocol the open device speaks. The gen-2 and FiiO arms carry the device's
+/// capabilities, which every op on those paths needs.
+#[derive(Clone)]
+enum Kind {
+    Gen1,
+    Gen2(dsp2::Profile),
+    Fiio(dsp_fiio::Profile),
 }
 
 fn expected() -> Option<Expected> {
@@ -108,10 +117,9 @@ where
     T: Send + 'static,
 {
     let exp = expected().ok_or_else(|| "no cable is open".to_string())?;
-    let profile = exp
-        .profile
-        .clone()
-        .ok_or_else(|| "this cable does not speak the gen-2 protocol".to_string())?;
+    let Kind::Gen2(profile) = exp.kind.clone() else {
+        return Err("this cable does not speak the gen-2 protocol".to_string());
+    };
     on_hid_thread(move || {
         let dev = hid_gen2::open(exp.vid, exp.pid).map_err(|e| {
             format!(
@@ -121,6 +129,36 @@ where
         })?;
         Ok(f(&dev, &profile))
     })?
+}
+
+/// The FiiO counterpart of `on_gen2`: reopens the remembered device by exact vid:pid, so an op
+/// can never land on a different one.
+fn on_fiio<T>(f: impl FnOnce(&hid_fiio::Dev, &dsp_fiio::Profile) -> T + Send + 'static) -> Result<T, String>
+where
+    T: Send + 'static,
+{
+    let exp = expected().ok_or_else(|| "no cable is open".to_string())?;
+    let Kind::Fiio(profile) = exp.kind.clone() else {
+        return Err("this device does not speak the FiiO protocol".to_string());
+    };
+    on_hid_thread(move || {
+        let dev = hid_fiio::open(exp.vid, exp.pid).map_err(|e| {
+            format!("{} is no longer connected: {}. Nothing was written.", exp.name, e)
+        })?;
+        Ok(f(&dev, &profile))
+    })?
+}
+
+/// A FiiO device we have a profile for and that answers the handshake (an active-bank read).
+fn probe_fiio(vid: u16, pid: u16, product: &str) -> Option<dsp_fiio::Profile> {
+    let profile = dsp_fiio::profile(vid, pid, product)?;
+    let dev = hid_fiio::open(vid, pid).ok()?;
+    dsp_fiio::read_preset(&dev)?;
+    Some(profile)
+}
+
+fn all_vids() -> Vec<u16> {
+    VIDS.iter().chain(dsp_fiio::VIDS.iter()).copied().collect()
 }
 
 fn guard(dev: &backend::Dev) -> Result<(), String> {
@@ -158,7 +196,13 @@ pub struct Listed {
 pub fn list() -> Result<Vec<Listed>, String> {
     on_hid_thread(|| {
         let mut out = Vec::new();
-        for (vid, pid, product) in hid_gen2::candidates(&VIDS)? {
+        for (vid, pid, product) in hid_gen2::candidates(&all_vids())? {
+            if dsp_fiio::VIDS.contains(&vid) {
+                if let Some(p) = probe_fiio(vid, pid, &product) {
+                    out.push(Listed { vid: vid as u32, pid: pid as u32, name: p.name, gen: 3 });
+                }
+                continue;
+            }
             let gen2 = hid_gen2::open(vid, pid)
                 .ok()
                 .and_then(|d| dsp2::read_version(&d));
@@ -179,13 +223,43 @@ pub fn list() -> Result<Vec<Listed>, String> {
 /// mis-drive.
 pub fn open(want: Option<(u16, u16)>) -> Result<CableInfo, String> {
     on_hid_thread(move || {
-        let mut candidates = hid_gen2::candidates(&VIDS)?;
+        let mut candidates = hid_gen2::candidates(&all_vids())?;
         if let Some((v, p)) = want {
             candidates.retain(|(cv, cp, _)| (*cv, *cp) == (v, p));
             if candidates.is_empty() {
                 return Err(format!("no cable at {:04x}:{:04x}", v, p));
             }
         }
+
+        // FiiO devices are told apart by vendor id, and never sent the gen-2 probe.
+        for (vid, pid, product) in candidates.iter().filter(|c| dsp_fiio::VIDS.contains(&c.0)) {
+            let Some(p) = probe_fiio(*vid, *pid, product) else {
+                continue;
+            };
+            *EXPECTED.lock().unwrap() = Some(Expected {
+                vid: *vid,
+                pid: *pid,
+                name: p.name.clone(),
+                kind: Kind::Fiio(p.clone()),
+            });
+            return Ok(CableInfo {
+                name: p.name.clone(),
+                vid: *vid as u32,
+                pid: *pid as u32,
+                has_presets: Some(true),
+                presets: p.presets.clone(),
+                gen: 3,
+                bands: p.bands,
+                gain_min: p.gain_min,
+                gain_max: p.gain_max,
+                q_min: p.q_min,
+                q_max: p.q_max,
+                types: p.types.clone(),
+                preamp: "global".into(),
+                firmware: None,
+            });
+        }
+        candidates.retain(|c| !dsp_fiio::VIDS.contains(&c.0));
 
         // Gen-2 first: probe each candidate for the report-0x4B handshake.
         for (vid, pid, product) in &candidates {
@@ -207,7 +281,7 @@ pub fn open(want: Option<(u16, u16)>) -> Result<CableInfo, String> {
                 vid: *vid,
                 pid: *pid,
                 name: profile.name.clone(),
-                profile: Some(profile.clone()),
+                kind: Kind::Gen2(profile.clone()),
             });
             return Ok(CableInfo {
                 name: profile.name.clone(),
@@ -236,7 +310,7 @@ pub fn open(want: Option<(u16, u16)>) -> Result<CableInfo, String> {
             vid: dsp::MOONDROP_VID,
             pid: dev.pid(),
             name: name.clone(),
-            profile: None,
+            kind: Kind::Gen1,
         });
         Ok(CableInfo {
             name,
@@ -261,16 +335,22 @@ pub fn close() {
     *EXPECTED.lock().unwrap() = None;
 }
 
+fn kind() -> Kind {
+    EXPECTED.lock().unwrap().as_ref().map(|e| e.kind.clone()).unwrap_or(Kind::Gen1)
+}
+
 fn is_gen2() -> bool {
-    EXPECTED
-        .lock()
-        .unwrap()
-        .as_ref()
-        .map(|e| e.profile.is_some())
-        .unwrap_or(false)
+    matches!(kind(), Kind::Gen2(_))
+}
+
+fn is_fiio() -> bool {
+    matches!(kind(), Kind::Fiio(_))
 }
 
 pub fn read_mode() -> Result<Option<i32>, String> {
+    if is_fiio() {
+        return on_fiio(|dev, _| dsp_fiio::read_preset(dev).map(|s| s as i32));
+    }
     if is_gen2() {
         return on_gen2(|dev, _| dsp2::read_slot(dev).map(|s| s as i32));
     }
@@ -281,6 +361,9 @@ pub fn read_mode() -> Result<Option<i32>, String> {
 }
 
 pub fn read_bank() -> Result<Vec<Band>, String> {
+    if is_fiio() {
+        return on_fiio(|dev, p| dsp_fiio::read_bank(dev, p))?;
+    }
     if is_gen2() {
         return on_gen2(|dev, p| dsp2::read_bank(dev, p.bands));
     }
@@ -291,6 +374,10 @@ pub fn read_bank() -> Result<Vec<Band>, String> {
 }
 
 pub fn set_preset(idx: i32) -> Result<Option<i32>, String> {
+    if is_fiio() {
+        let slot = u8::try_from(idx).map_err(|_| format!("there is no bank {}", idx))?;
+        return on_fiio(move |dev, p| dsp_fiio::set_preset(dev, p, slot))?;
+    }
     if is_gen2() {
         return on_gen2(move |dev, _| dsp2::set_preset(dev, idx as u8));
     }
@@ -302,6 +389,9 @@ pub fn set_preset(idx: i32) -> Result<Option<i32>, String> {
 }
 
 pub fn write_bank(bands: Vec<BandIn>, preamp: f64) -> Result<WriteResult, String> {
+    if is_fiio() {
+        return on_fiio(move |dev, p| dsp_fiio::write_bank(dev, p, &bands, preamp))?;
+    }
     if is_gen2() {
         return on_gen2(move |dev, p| dsp2::write_bank(dev, p, &bands, preamp));
     }
@@ -312,9 +402,13 @@ pub fn write_bank(bands: Vec<BandIn>, preamp: f64) -> Result<WriteResult, String
     })?
 }
 
-/// The preamp the cable is currently holding. Gen-2 only — gen-1 bakes its preamp into a
-/// band's coefficients, so there is no register to read it back from.
+/// The preamp the cable is currently holding. Gen-2 and FiiO only — gen-1 bakes its preamp
+/// into a band's coefficients, so there is no register to read it back from. On FiiO it is
+/// the active bank's global gain, which is stored per bank.
 pub fn read_preamp() -> Result<Option<f64>, String> {
+    if is_fiio() {
+        return on_fiio(|dev, _| dsp_fiio::read_gain(dev));
+    }
     if is_gen2() {
         return on_gen2(|dev, p| dsp2::read_preamp(dev, p));
     }
@@ -427,6 +521,92 @@ mod tests {
             assert!((back[1].gain - 2.5).abs() < 0.01);
             assert_eq!(r.acked as usize, info.bands, "original bank should go back");
         }
+    }
+
+    // End-to-end against an attached FiiO device, through the UI's entry points. Uses USER7
+    // as a scratch bank, and only if it is flat, then puts it back and returns to the bank the
+    // device started on — so it won't touch an EQ you care about.
+    //   cargo test --lib -- --ignored --nocapture fiio_round_trip
+    #[test]
+    #[ignore = "needs a FiiO BTR17 attached; writes and restores its USER7 bank"]
+    fn fiio_round_trip() {
+        const SCRATCH: i32 = 166; // USER7 on a BTR17
+        let found = list().expect("list failed");
+        let d = found.iter().find(|d| d.gen == 3).expect("no FiiO device attached");
+        let info = open(Some((d.vid as u16, d.pid as u16))).expect("open failed");
+        assert_eq!(info.presets.get(&(SCRATCH as u8)).map(String::as_str), Some("USER7"));
+
+        let start = read_mode().expect("read_mode failed").expect("no active bank");
+        println!("{} · {} bands · on {:?}", info.name, info.bands, info.presets.get(&(start as u8)));
+        let t = std::time::Instant::now();
+        assert_eq!(set_preset(SCRATCH).expect("switch failed"), Some(SCRATCH));
+        println!("switch + settle: {:?}", t.elapsed());
+
+        let t = std::time::Instant::now();
+        let before = read_bank().expect("read failed");
+        println!("read: {:?}", t.elapsed());
+        let pre_before = read_preamp().expect("preamp read failed").expect("no preamp");
+        assert!(before.iter().all(|b| b.ok));
+        if before.iter().any(|b| b.gain != 0.0) || pre_before != 0.0 {
+            set_preset(start).ok();
+            panic!("USER7 isn't flat, so it isn't safe to use as a scratch bank");
+        }
+
+        let probe: Vec<BandIn> = (0..info.bands)
+            .map(|i| BandIn {
+                freq: 100.0 * (i as f64 + 1.0),
+                gain: if i % 2 == 0 { -3.5 } else { 2.5 },
+                q: 1.25,
+                typ: if i == 9 { "HSQ".into() } else { "PK".into() },
+            })
+            .collect();
+        let t = std::time::Instant::now();
+        let w = write_bank(probe, -4.2);
+        println!("write + verify: {:?} -> {:?}", t.elapsed(), w.as_ref().map(|w| w.acked));
+        let back = read_bank();
+        let pre_back = read_preamp();
+
+        // Restore before asserting, so a failure can't leave the probe on the device.
+        let restore: Vec<BandIn> = before
+            .iter()
+            .map(|b| BandIn { freq: b.freq as f64, gain: b.gain, q: b.q, typ: b.typ.clone() })
+            .collect();
+        let r = write_bank(restore, pre_before);
+        let flat_again = read_bank();
+        set_preset(start).ok();
+        let end = read_mode();
+        close();
+
+        let w = w.expect("write failed");
+        assert_eq!(w.acked as usize, info.bands, "every band should verify");
+        assert_eq!(w.active, Some(SCRATCH));
+        let back = back.unwrap();
+        assert_eq!((back[0].freq, back[0].gain), (100, -3.5));
+        assert_eq!((back[9].freq, back[9].typ.as_str()), (1000, "HSQ"));
+        assert_eq!(pre_back.unwrap(), Some(-4.2));
+        assert_eq!(r.expect("restore failed").acked as usize, info.bands);
+        assert!(flat_again.unwrap().iter().zip(&before).all(|(a, b)| a.freq == b.freq && a.gain == b.gain));
+        assert_eq!(end.unwrap(), Some(start), "should be back on the starting bank");
+    }
+
+    // A factory voicing can't be written; the write must refuse rather than land on it.
+    #[test]
+    #[ignore = "needs a FiiO BTR17 attached; switches bank and back, writes nothing"]
+    fn fiio_refuses_to_write_a_factory_bank() {
+        let found = list().expect("list failed");
+        let d = found.iter().find(|d| d.gen == 3).expect("no FiiO device attached");
+        open(Some((d.vid as u16, d.pid as u16))).expect("open failed");
+        let start = read_mode().unwrap().unwrap();
+        set_preset(0).expect("switch to Jazz failed");
+        let jazz = read_bank().expect("read failed");
+        let w = write_bank(
+            jazz.iter().map(|b| BandIn { freq: b.freq as f64, gain: b.gain, q: b.q, typ: b.typ.clone() }).collect(),
+            0.0,
+        );
+        set_preset(start).ok();
+        close();
+        let e = w.err().expect("writing a factory bank should be refused");
+        assert!(e.contains("Pick a USER bank"), "{e}");
     }
 
     // The pre-fix shape, kept as a stress harness: a fresh short-lived thread per operation,

@@ -1,7 +1,9 @@
 mod dsp;
 mod dsp2;
+mod dsp_fiio;
 mod hid;
 mod hid_api;
+mod hid_fiio;
 mod hid_gen2;
 
 #[cfg(windows)]
@@ -55,6 +57,26 @@ fn frs_load(app: tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 fn frs_save(app: tauri::AppHandle, data: String) -> Result<(), String> {
     let p = frs_path(&app)?;
+    fs::write(&p, data).map_err(|e| e.to_string())
+}
+
+// Bank sets: named collections of EQs laid out across a device's banks, plus the names the
+// app keeps for banks on devices that can't store names themselves. Same config dir.
+fn sets_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("bank-sets.json"))
+}
+
+#[tauri::command]
+fn sets_load(app: tauri::AppHandle) -> Result<String, String> {
+    let p = sets_path(&app)?;
+    Ok(fs::read_to_string(&p).unwrap_or_else(|_| "{}".to_string()))
+}
+
+#[tauri::command]
+fn sets_save(app: tauri::AppHandle, data: String) -> Result<(), String> {
+    let p = sets_path(&app)?;
     fs::write(&p, data).map_err(|e| e.to_string())
 }
 
@@ -148,6 +170,8 @@ pub fn run() {
             open_url,
             frs_load,
             frs_save,
+            sets_load,
+            sets_save,
             backup_write
         ])
         .run(tauri::generate_context!())

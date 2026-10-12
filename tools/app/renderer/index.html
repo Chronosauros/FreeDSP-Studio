@@ -279,6 +279,61 @@
   .preset.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .preset:disabled { opacity:.45; cursor:not-allowed; }
   .preset:disabled:hover { border-color:var(--line); color:var(--ink-2); }
+  /* FiiO USER banks: numbered tiles, five to a row, bypass across the bottom */
+  .presetgrid.banks { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .presetgrid.banks .preset { text-align:center; padding:9px 0; }
+  .presetgrid.banks .preset.wide { grid-column:1 / -1; }
+  .presetgrid.banks .banknote { grid-column:1 / -1; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .presetgrid.banks .preset { position:relative; }
+  .presetgrid.banks .preset.has::after { content:''; position:absolute; top:4px; right:5px; width:4px; height:4px; border-radius:50%; background:var(--accent); }
+  .presetgrid.banks .preset.on.has::after { background:var(--accent-ink); }
+  .presetgrid.banks .preset:disabled { opacity:.5; }
+  /* offline chooser on the connect screen */
+  .offline { margin-top:22px; padding-top:16px; border-top:1px solid var(--line); }
+  .offline .off-title { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .offline .off-row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .offline select, .offline input, .setrow select, .setrow input, .bankrow input, .bankrow select { font:12px/1 'IBM Plex Sans',sans-serif; padding:7px 8px; border-radius:7px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .offline .off-bands { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .offline .off-bands input { width:52px; }
+  /* bank set window */
+  .modal.wide { width:720px; }
+  .setrow { gap:6px; align-items:center; }
+  .setrow select, .setrow input { flex:1; min-width:0; }
+  .banklist { display:flex; flex-direction:column; gap:4px; overflow:auto; min-height:0; max-height:calc(100vh - 300px); }
+  .bankrow { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center;
+    padding:5px 8px; border-radius:8px; background:var(--row-bg); border:1px solid transparent; }
+  .bankrow .grip { flex:0 0 14px; }
+  .bankrow .slot { flex:0 0 52px; }
+  .bankrow input { flex:1 1 140px; }
+  .bankrow .bmeta { flex:0 1 165px; }
+  .bankrow .bacts { margin-left:auto; }
+  .bankrow.drop { border-color:var(--accent); }
+  .bankrow.live { box-shadow:inset 3px 0 0 var(--accent); }
+  .bankrow .grip { cursor:grab; color:var(--faint); text-align:center; user-select:none; }
+  .bankrow .slot { font:500 11.5px/1 'IBM Plex Mono',monospace; color:var(--ink-2); }
+  .bankrow input { min-width:0; }
+  .bankrow .bmeta { font:10.5px/1.2 'IBM Plex Mono',monospace; color:var(--faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bankrow .bmeta.warn { color:var(--danger); }
+  .bankrow .bacts { display:flex; gap:4px; align-items:center; }
+  .bankrow .bacts .btn { padding:5px 8px; }
+  .bankrow .bacts select { width:74px; padding:5px 4px; }
+  .bankmsg { font-size:12px; color:var(--muted); min-height:16px; }
+  .bankfoot { gap:6px; align-items:center; }
+  /* file drop */
+  .dropzone { position:fixed; inset:0; z-index:60; display:grid; place-items:center; background:rgba(0,0,0,.35);
+    pointer-events:none; }
+  .dropzone .dz-card { border:2px dashed var(--accent); border-radius:16px; background:var(--card); padding:28px 36px; max-width:440px; text-align:center; }
+  .dropzone .dz-title { font-size:17px; font-weight:600; color:var(--ink); }
+  .dropzone .dz-sub { font-size:12.5px; color:var(--muted); margin-top:6px; }
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:70; max-width:min(640px, calc(100vw - 48px));
+    background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow-card);
+    padding:10px 14px; font-size:12.5px; }
+  .toast.warn { border-color:var(--danger); }
+  .dropform { display:grid; grid-template-columns:70px minmax(0,1fr); gap:10px 12px; align-items:center; }
+  .dropform .rigtoggle { justify-self:start; }
+  .dropform input { font:12px/1 'IBM Plex Sans',sans-serif; padding:7px 8px; border-radius:7px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); min-width:0; width:100%; }
 
   /* saved EQs (dialog) */
   .backuplinks { font:10.5px/1 'IBM Plex Mono',monospace; color:var(--muted); }
@@ -350,6 +405,7 @@
     <div class="tb-right">
       <nav class="toplinks hidden" id="topLinks">
         <a id="linkRead" title="Read the cable's current custom bank">read cable</a>
+        <a id="linkConnect" class="hidden" title="Leave offline mode and look for a device">connect</a>
         <a id="linkSaved" title="Saved EQs and built-in starting points">saved</a>
         <a id="linkBackup" title="Back up or restore your EQs and FR curves">backup</a>
         <a id="linkLog" title="Diagnostics log">log</a>
@@ -373,6 +429,17 @@
         <div class="ct-sub">Plug in your DSP cable, then click Detect. Nothing is changed until you Write.</div>
         <div id="deviceList" class="devicelist hidden"></div>
         <button id="connectBtn" class="writebtn" style="padding:12px 20px; font-size:15px">Detect cable</button>
+        <div class="offline">
+          <div class="off-title">Or work without a device</div>
+          <div class="off-row">
+            <select id="offTarget" title="Device you're designing for">
+              <option value="fiio-btr17">FiiO BTR17 · bank set</option>
+              <option value="generic">Generic</option>
+            </select>
+            <label class="off-bands" title="How many bands to design with">bands <input type="number" id="offBands" min="1" max="10" step="1" value="10"></label>
+            <button class="btn" id="offStart">Start</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -407,6 +474,7 @@
           <button class="btn sm" id="flatBtn" title="Reset all bands to flat">Flatten</button>
           <button class="btn sm" id="undoBtn" title="Undo last change" disabled>↶ Undo</button>
           <button class="btn sm" id="eqTextBtn" title="Edit the EQ as text (squig / AutoEQ)">As text</button>
+          <button class="btn sm" id="eqExportBtn" title="Save the EQ as a squig / Equalizer APO parametric .txt">Export…</button>
         </div>
         <div class="bandwrap">
           <table class="bandtable">
@@ -420,7 +488,7 @@
       <div class="ws-rail">
        <div class="rail-scroll">
         <section class="step-sec hidden" id="profCard">
-          <h2 class="step">Cable voicing</h2>
+          <h2 class="step"><span id="profTitle">Cable voicing</span><a class="steplink hidden" id="linkBanks" title="Name, arrange, read and write all the banks at once">banks…</a></h2>
           <div class="presetgrid" id="presetGrid"></div>
         </section>
 
@@ -479,6 +547,9 @@
   </div>
 </div>
 
+<div class="dropzone hidden" id="dropZone"><div class="dz-card"><div class="dz-title">Drop an EQ or FR file</div><div class="dz-sub">A squig / AutoEQ parametric EQ is applied to the current EQ. A frequency response is added as a source or target.</div></div></div>
+<div class="toast hidden" id="toast"></div>
+
 <!-- ---- Modals ---- -->
 <div class="overlay hidden" id="overlay">
   <div class="modal hidden" id="modalEqText">
@@ -502,7 +573,7 @@
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
     <div style="font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted)">
-      Back up saves all your EQs and FR curves to a <span class="mono">.json</span> file wherever you choose. Restore merges a backup file back in (nothing is overwritten unless the names match).
+      Back up saves all your EQs, bank sets and FR curves to a <span class="mono">.json</span> file wherever you choose. Restore merges a backup file back in (nothing is overwritten unless the names match).
     </div>
     <div id="backupMsg" class="backupmsg"></div>
     <div class="row" style="justify-content:flex-end; gap:8px">
@@ -521,6 +592,48 @@
     <div class="savedfoot">
       <input type="text" id="saveName" placeholder="Name the current EQ…">
       <button class="btn on" id="saveBtn">Save</button>
+    </div>
+  </div>
+
+  <div class="modal wide hidden" id="modalBanks">
+    <div class="mhead">
+      <div><div class="mtitle">Bank set</div><div class="msub" id="bankSub">Every USER bank in one place. Drag ⋮⋮ to move a bank, Store puts the editor's EQ in it.</div></div>
+      <button class="winbtn" data-close title="Close">✕</button>
+    </div>
+    <div class="row setrow">
+      <select id="setSel" title="Bank set"></select>
+      <input type="text" id="setName" class="hidden" maxlength="60" spellcheck="false" title="Set name, Enter to keep">
+      <button class="btn sm" id="setNew" title="Start an empty set">New</button>
+      <button class="btn sm" id="setRename" title="Rename this set">Rename</button>
+      <button class="btn sm" id="setDelete" title="Delete this set">Delete</button>
+    </div>
+    <div class="banklist" id="bankList"></div>
+    <div class="bankmsg" id="bankMsg"></div>
+    <div class="row bankfoot">
+      <button class="btn sm" id="bankSort" title="Order filled banks by name, empty ones last">Sort by name</button>
+      <div class="grow"></div>
+      <button class="btn sm hidden" id="bankCancel">Stop</button>
+      <button class="btn sm" id="bankReadAll" title="Read every USER bank on the device into a new set">Read all from device</button>
+      <button class="btn sm on" id="bankWriteAll" title="Write every filled bank to the device">Write all to device</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="modalDrop">
+    <div class="mhead">
+      <div><div class="mtitle">Add frequency response</div><div class="msub" id="dropSub">From a dropped file.</div></div>
+      <button class="winbtn" data-close title="Close">✕</button>
+    </div>
+    <div class="dropform">
+      <label class="seclabel" for="dropName">Name</label><input type="text" id="dropName" spellcheck="false" maxlength="80">
+      <span class="seclabel">Rig</span>
+      <div class="rigtoggle" id="dropRig"><button data-droprig="5128">5128</button><button data-droprig="711">711</button><button data-droprig="other">other</button></div>
+      <span class="seclabel">It's a</span>
+      <div class="rigtoggle" id="dropKind"><button data-dropkind="meas" title="Your IEM's measured response">Source</button><button data-dropkind="target" title="The curve to EQ towards">Target</button></div>
+    </div>
+    <div class="impmsg" id="dropMsg"></div>
+    <div class="row" style="justify-content:flex-end; gap:8px">
+      <button class="btn" id="dropSkip">Skip</button>
+      <button class="btn on" id="dropAdd">Add</button>
     </div>
   </div>
 
@@ -707,6 +820,10 @@
     load: function(){ return invoke('saved_load'); },
     save: function(data){ return invoke('saved_save', { data: data }); }
   };
+  window.sets = {
+    load: function(){ return invoke('sets_load'); },
+    save: function(data){ return invoke('sets_save', { data: data }); }
+  };
   window.app = {
     openUrl: function(url){ return invoke('open_url', { url: url }); },
     backupWrite: function(path, data){ return invoke('backup_write', { path: path, data: data }); },
@@ -756,8 +873,8 @@ const STARTING = {
   'DUSK Bass+':   [[140,1,0.4],[200,-1,3.0],[300,-6,0.4],[1500,-7,0.6],[5400,-3,2.5],[8000,-5,0.4],[14000,-7,2.0]],
   'DUSK Diffuse': [[65,-7,0.7],[1500,-5,0.4],[2900,3,2.5],[6000,-2,3.0],[14000,-10,2.0]],
 };
-const SQUIG_TYPE = { PK:'PK', PEQ:'PK', LSC:'LSQ', LS:'LSQ', LSQ:'LSQ', HSC:'HSQ', HS:'HSQ', HSQ:'HSQ' };
-const RTYPE = { PK:'PK', LSQ:'LSC', HSQ:'HSC' };
+const SQUIG_TYPE = { PK:'PK', PEQ:'PK', LSC:'LSQ', LS:'LSQ', LSQ:'LSQ', HSC:'HSQ', HS:'HSQ', HSQ:'HSQ', LP:'LP', LPQ:'LP', HP:'HP', HPQ:'HP' };
+const RTYPE = { PK:'PK', LSQ:'LSC', HSQ:'HSC', LP:'LPQ', HP:'HPQ' };
 const TYPE_LABEL = { PK:'PK', LSQ:'LSC', HSQ:'HSC', LP:'LPF', HP:'HPF' };
 let TYPE_CYCLE = ['PK','LSQ','HSQ'];
 
@@ -772,6 +889,7 @@ let preamp = 0;
 let hiGain = false;   // "+6 dB mode", raises the per-band gain cap
 let gCeil = 6;        // ceiling used when +6 dB mode is on
 let cable = null;
+let activeBank = null;   // the bank the device reports as active (FiiO writes always land on it)
 function curGMax(){ return hiGain ? gCeil : LIM.gMax; }
 
 // ---- undo ----
@@ -813,8 +931,8 @@ function fillBands(list){
 // Gen-1 cables accept more gain than the app offers by default, which is what "+6 dB mode"
 // unlocks. Gen-2 cables publish a real ceiling, so there is nothing to raise.
 function ensureCeilFor(maxGain){ if(GEN===1 && maxGain>LIM.gMax){ hiGain=true; gCeil=clamp(Math.max(gCeil,Math.ceil(maxGain)),3,12); } }
-function curGainStep(){ return GEN===2 ? 0.1 : 1; }
-function roundGain(v){ return GEN===2 ? Math.round(v*10)/10 : Math.round(v); }
+function curGainStep(){ return GEN>=2 ? 0.1 : 1; }
+function roundGain(v){ return GEN>=2 ? Math.round(v*10)/10 : Math.round(v); }
 
 // Reshapes the UI around whatever cable just opened.
 function applyCableCaps(info){
@@ -825,6 +943,7 @@ function applyCableCaps(info){
           gMin: info.gainMin ?? -12, gMax: info.gainMax ?? 3,
           qMin: info.qMin ?? 0.2, qMax: info.qMax ?? 10 };
   if(GEN!==1){ hiGain=false; }
+  setDbRange(LIM.gMin);
   fitCfg.bands = clamp(fitCfg.bands||NB, 1, NB);
   // Drop any band the new cable doesn't have, and any filter type it can't run.
   model = fillBands(model.map(b=>({...b, type: TYPE_CYCLE.includes(b.type) ? b.type : 'PK'})));
@@ -833,6 +952,7 @@ function applyCableCaps(info){
 function resetCableCaps(){
   GEN=1; NB=9; TYPE_CYCLE=['PK','LSQ','HSQ'];
   LIM={ fMin:20, fMax:20000, gMin:-12, gMax:3, qMin:0.2, qMax:10 };
+  setDbRange(LIM.gMin);
   syncCapUI();
 }
 // Labels and controls that only make sense for one generation.
@@ -844,7 +964,11 @@ function syncCapUI(){
 }
 
 // ---- coordinate mapping (shared by canvas + nodes) ----
-const DB_MIN=-15, DB_MAX=12, DB_SPAN=DB_MAX-DB_MIN;
+// The graph floor follows the device: -15 dB suits the cables that stop at -12, but a FiiO
+// band goes down to -24, so the floor drops to keep a few dB of room below the lowest gain.
+const DB_MAX=12;
+let DB_MIN=-15, DB_SPAN=DB_MAX-DB_MIN;
+function setDbRange(gMin){ DB_MIN = gMin < -12 ? Math.floor((gMin-3)/3)*3 : -15; DB_SPAN=DB_MAX-DB_MIN; }
 const fToX = (f) => Math.log10(f/20)/Math.log10(1000);          // 0..1
 const xToF = (x) => Math.round(20*Math.pow(1000, x));
 const dbToY = (db) => 1-((db-DB_MIN)/DB_SPAN);                   // 0..1 (top=0)
@@ -1301,7 +1425,7 @@ function autoFit(){
 
 // ---- backup: saved EQs + FR curves in one file ----
 async function exportBackup(){
-  const data = JSON.stringify({ version:1, eqs: loadSaved(), frs:{ meas:frCache.meas, targets:frCache.targets, rig:activeRig } }, null, 2);
+  const data = JSON.stringify({ version:1, eqs: loadSaved(), frs:{ meas:frCache.meas, targets:frCache.targets, rig:activeRig }, sets: setsDb }, null, 2);
   try{
     const path = await window.app.saveDialog({ defaultPath:'freedsp-backup.json', filters:[{name:'JSON', extensions:['json']}] });
     if(!path) return;                       // cancelled
@@ -1316,7 +1440,11 @@ function importBackup(file){
       if(o.eqs && typeof o.eqs==='object'){ const cur=loadSaved(); for(const k in o.eqs){ cur[k]=o.eqs[k]; neq++; } storeSaved(cur); renderSaved(); }
       if(o.frs){ if(o.frs.meas) for(const k in o.frs.meas){ frCache.meas[k]=o.frs.meas[k]; nfr++; }
         if(o.frs.targets) for(const k in o.frs.targets){ frCache.targets[k]=o.frs.targets[k]; nfr++; } persistFrs(); renderFrLists(); }
-      flashBackup(`Restored ${neq} EQ(s), ${nfr} FR(s)`);
+      let nset=0;
+      if(o.sets && o.sets.sets){ for(const k in o.sets.sets){ setsDb.sets[k]=o.sets.sets[k]; nset++; }
+        if(o.sets.deviceNames) for(const d in o.sets.deviceNames) setsDb.deviceNames[d]={ ...(setsDb.deviceNames[d]||{}), ...o.sets.deviceNames[d] };
+        persistSets(); }
+      flashBackup(`Restored ${neq} EQ(s), ${nfr} FR(s)${nset?`, ${nset} bank set(s)`:''}`);
     }catch(e){ log('restore failed: '+e); flashBackup('Restore failed, not a valid backup'); }
   };
   r.readAsText(file);
@@ -1843,7 +1971,8 @@ function parseSquig(text){
   const filters=[]; let pre=0, skipped=0;
   for(const ln of text.split(/\r?\n/)){
     const pm=ln.match(/Preamp:\s*(-?[\d.]+)\s*dB/i); if(pm){ pre=parseFloat(pm[1]); continue; }
-    const m=ln.match(/Filter\s+\d+:\s+(ON|OFF)\s+(\w+)\s+Fc\s+([\d.]+)\s*Hz\s+Gain\s+(-?[\d.]+)\s*dB\s+Q\s+([\d.]+)/i);
+    // "Filter 3: ON PK …" from squig / AutoEQ, or numberless "Filter: ON PK …" from Equalizer APO.
+    const m=ln.match(/Filter\s*\d*:\s+(ON|OFF)\s+(\w+)\s+Fc\s+([\d.]+)\s*Hz\s+Gain\s+(-?[\d.]+)\s*dB\s+Q\s+([\d.]+)/i);
     if(!m) continue;
     if(m[1].toUpperCase()==='OFF'){ skipped++; continue; }
     filters.push({ type:SQUIG_TYPE[m[2].toUpperCase()]||'PK', freq:parseFloat(m[3]), gain:parseFloat(m[4]), q:parseFloat(m[5]) });
@@ -1859,8 +1988,13 @@ function eqToText(){
 }
 function openEqText(){ $('eqText').value=eqToText(); $('eqTextMsg').textContent=''; openModal('modalEqText'); }
 function applyEqText(){
-  const {preamp:filePreamp,filters,skipped}=parseSquig($('eqText').value);
-  if(!filters.length){ $('eqTextMsg').textContent='No enabled "Filter N: ON ..." lines found.'; return; }
+  const parsed=parseSquig($('eqText').value);
+  if(!parsed.filters.length){ $('eqTextMsg').textContent='No enabled "Filter N: ON ..." lines found.'; return; }
+  $('eqTextMsg').textContent = applyFilters(parsed);
+}
+// Applies parsed squig / APO filters to the editor, fitted to what the device can do, and says
+// what had to change.
+function applyFilters({preamp:filePreamp, filters, skipped}){
   ensureCeilFor(Math.max(0, ...filters.map(f=>f.gain)));
   const warns=[]; if(filters.length>NB) warns.push(`had ${filters.length} filters, kept first ${NB}`);
   const clamped=filters.slice(0,NB).map(f=>{
@@ -1868,6 +2002,7 @@ function applyEqText(){
     if(freq<LIM.fMin||freq>LIM.fMax){ freq=clamp(freq,LIM.fMin,LIM.fMax); warns.push('freq clamped'); }
     if(q<LIM.qMin||q>LIM.qMax){ q=clamp(q,LIM.qMin,LIM.qMax); warns.push('Q clamped'); }
     if(gain>curGMax()||gain<LIM.gMin){ gain=clamp(gain,LIM.gMin,curGMax()); warns.push(`gain clamped to ${LIM.gMin}/+${curGMax()}`); }
+    if(!TYPE_CYCLE.includes(type||'PK')){ warns.push(`${TYPE_LABEL[type]||type} isn't available here, made PK`); type='PK'; }
     return {freq,gain:Math.round(gain*10)/10,q,type:type||'PK'};
   });
   pushUndo();
@@ -1877,8 +2012,83 @@ function applyEqText(){
   let msg = `Applied ${clamped.length} filter(s)${flat?`, ${flat} slot(s) flat`:''}. Preamp ${preamp.toFixed(1)} dB.`;
   if(skipped) msg += ` ${skipped} disabled skipped.`;
   if(warns.length) msg += '  ⚠ '+[...new Set(warns)].join(', ');
-  $('eqTextMsg').textContent = msg;
   renderAll();
+  return msg;
+}
+
+// ---- export the EQ as a .txt ----
+// Same text as the "As text" box: squig, AutoEQ and Equalizer APO all read it.
+function exportName(){
+  const bank = (offline && selBank!=null) ? bankName(selBank) : (cable && activeBank!=null ? bankName(activeBank) : '');
+  const base = bank || curMeas || 'EQ';
+  return (base.replace(/[\\/:*?"<>|]+/g,' ').trim() || 'EQ') + ' ParametricEQ.txt';
+}
+async function exportEq(){
+  try{
+    const path = await window.app.saveDialog({ defaultPath:exportName(), filters:[{name:'Text', extensions:['txt']}] });
+    if(!path) return;
+    await window.app.backupWrite(path, eqToText()+'\n');
+    log('EQ exported: '+path); toast('EQ exported');
+  }catch(e){ log('export failed: '+e); toast('Export failed, see the log', true); }
+}
+
+// ---- drag and drop ----
+// A dropped text file is either a parametric EQ (squig / AutoEQ / APO "Filter …" lines), which
+// is applied to the current EQ straight away, or a frequency response (freq/dB pairs), which
+// needs a name, a rig and a role before it's added.
+let toastTimer=null;
+function toast(msg, warn){ const t=$('toast'); t.textContent=msg; t.classList.toggle('warn',!!warn); show('toast',true);
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>show('toast',false), warn?6000:3500); }
+let dropQueue=[], dropCur=null, dragDepth=0;
+function hasFiles(e){ return e.dataTransfer && [...(e.dataTransfer.types||[])].includes('Files'); }
+function frNameFrom(file){ return (file.name||'imported').replace(/\.[^.]+$/,'').replace(/\s*\[[^\]]*\]\s*$/,'').trim() || 'imported'; }
+async function handleDrop(files){
+  const list=Array.from(files||[]); if(!list.length) return;
+  const read=(f)=>new Promise((res)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result||'')); r.onerror=()=>res(''); r.readAsText(f); });
+  let eqDone=false; const frs=[], bad=[];
+  for(const f of list){
+    const text=await read(f);
+    const eq=parseSquig(text);
+    if(eq.filters.length){
+      if(eqDone){ bad.push(`${f.name} (only one EQ is applied at a time)`); continue; }
+      if(!$('workspace') || $('workspace').classList.contains('hidden')){ bad.push(`${f.name} (connect a device or start offline first)`); continue; }
+      eqDone=true; toast(`${f.name}: ${applyFilters(eq)}`); log(`dropped EQ ${f.name}`); continue;
+    }
+    const pts=normalizeFR(parseFR(text));
+    if(pts.length>=4){ frs.push({ name:frNameFrom(f), file:f.name, points:pts }); continue; }
+    bad.push(f.name);
+  }
+  if(bad.length) toast(`Not used: ${bad.join(', ')}. Expected squig / AutoEQ "Filter …" lines or freq/dB pairs.`, true);
+  dropQueue.push(...frs);
+  if(!dropCur) nextDrop();
+}
+function nextDrop(){
+  dropCur=dropQueue.shift()||null;
+  if(!dropCur){ closeModal(); return; }
+  $('dropSub').textContent=`From ${dropCur.file}, ${dropCur.points.length} points.`+(dropQueue.length?` ${dropQueue.length} more after this.`:'');
+  $('dropName').value=dropCur.name;
+  dropCur.rig='711'; dropCur.kind='meas'; syncDropForm();
+  show('dropSkip', dropQueue.length>0); $('dropAdd').textContent = 'Add';
+  openModal('modalDrop'); $('dropName').focus(); $('dropName').select();
+}
+function syncDropForm(){
+  if(!dropCur) return;
+  document.querySelectorAll('#dropRig button').forEach(b=>b.classList.toggle('on', b.dataset.droprig===dropCur.rig));
+  document.querySelectorAll('#dropKind button').forEach(b=>b.classList.toggle('on', b.dataset.dropkind===dropCur.kind));
+  const name=$('dropName').value.trim(), store=dropCur.kind==='meas'?frCache.meas:frCache.targets;
+  $('dropMsg').textContent = !name ? 'Give it a name.' : (store[name] ? `Replaces the existing ${dropCur.kind==='meas'?'source':'target'} "${name}".` : '');
+}
+function addDropped(){
+  const name=$('dropName').value.trim(); if(!name){ $('dropName').focus(); return; }
+  const c=dropCur, store=c.kind==='meas'?frCache.meas:frCache.targets;
+  store[name]={ rig:c.rig, points:c.points };
+  // Show it: switch to its rig and select it, as an import from the FR window does.
+  if(activeRig!==c.rig) setFrRig(c.rig);
+  if(c.kind==='meas'){ curMeas=name; if(curTgt==='m:'+name) curTgt=null; } else curTgt='t:'+name;
+  persistFrs(); renderFrLists(); if(graphMode==='fr') drawGraph();
+  log(`added ${c.kind==='meas'?'source':'target'} "${name}" (${c.rig})`);
+  toast(`Added ${c.kind==='meas'?'source':'target'} "${name}" for the ${c.rig}.`);
+  nextDrop();
 }
 
 // ---- saved EQs (+ built-in DUSK starting points) ----
@@ -1935,7 +2145,9 @@ function renderSaved(){
 // ---- device I/O ----
 async function call(promise,label){ const r=await promise; if(!r||!r.ok){ log(`${label} failed: ${r?r.error:'no response'}`); throw new Error(r?r.error:'x'); } return r.data; }
 function renderCable(info){
+  offline=null; selBank=null; curTarget=targetForCable(info);
   applyCableCaps(info);
+  show('specId',true); show('linkRead',true); show('linkConnect',false); show('linkBanks', !!curTarget);
   $('devName').textContent=info.name;
   $('devId').textContent=`${info.vid.toString(16).toUpperCase().padStart(4,'0')}:${info.pid.toString(16).toUpperCase().padStart(4,'0')}`;
   $('devBands').textContent = -info.gainMin===info.gainMax ? `${info.bands} · ±${info.gainMax} dB` : `${info.bands} · −${-info.gainMin} / +${info.gainMax} dB`;
@@ -1944,10 +2156,98 @@ function renderCable(info){
   // Active-profile switching only applies to cables that have firmware voicings to switch
   // between — DUSK and MAY on gen-1, the FreeDSP Mini on gen-2.
   show('profCard', info.hasPresets===true);
+  // FiiO devices hold several writable banks rather than firmware voicings.
+  $('profTitle').textContent = GEN===3 ? 'EQ bank' : 'Cable voicing';
+}
+// ---- targets, offline mode and bank sets ----
+// A target is the device an EQ is designed for. The BTR17's numbers mirror dsp_fiio.rs: ten
+// USER banks at 160-169, bypass at 240, -24/+12 dB, Q 0.25-8, peaking and shelves.
+const BTR17_PRESETS = (()=>{ const o={}; for(let i=0;i<10;i++) o[160+i]='USER'+(i+1); o[240]='Bypass'; return o; })();
+const TARGETS = {
+  'fiio-btr17': { id:'fiio-btr17', name:'FIIO BTR17', gen:3, bands:10, gainMin:-24, gainMax:12, qMin:0.25, qMax:8,
+                  types:['PK','LSQ','HSQ'], presets:BTR17_PRESETS, userSlots:[160,161,162,163,164,165,166,167,168,169] },
+  'generic':    { id:'generic', name:'Generic', gen:2, bands:10, gainMin:-12, gainMax:12, qMin:0.1, qMax:10,
+                  types:['PK','LSQ','HSQ'], presets:{}, userSlots:[] },
+};
+let offline = null;      // {target, bands} while designing with no device attached
+let curTarget = null;    // the target in use: the connected FiiO's, or the offline one
+let selBank = null;      // offline: the bank the editor stores into
+let bankBusy = false;    // a read-all / write-all is running
+let bankStop = false;
+let writeAllArmed = false;   // second click on Write all after a clip warning
+function targetForCable(info){ return (info && info.gen===3 && info.vid===0x2972 && info.pid===0x0088) ? TARGETS['fiio-btr17'] : null; }
+function deviceKey(){ return cable ? `${cable.vid.toString(16)}:${cable.pid.toString(16)}` : null; }
+function presetsMap(){ return cable ? cable.presets : (offline ? offline.target.presets : {}); }
+function userLabel(s){ return presetsMap()[s] || ('bank '+s); }
+function stamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+// Sets live in bank-sets.json: { sets:{id:{name,target,banks:{slot:{name,bands,preamp}}}},
+// current:{targetId:setId}, deviceNames:{"vid:pid":{slot:name}} }. The BTR17 can't store bank
+// names itself, so the app keeps the names of what it last wrote to each bank.
+let setsDb = { sets:{}, current:{}, deviceNames:{} };
+function persistSets(){ try{ window.sets.save(JSON.stringify(setsDb)).catch(e=>log('saving bank sets failed: '+e)); }catch(e){ log('saving bank sets failed: '+e); } }
+async function initSets(){
+  try{ const raw=await window.sets.load(); const o=raw?JSON.parse(raw):{};
+    setsDb={ sets:o.sets||{}, current:o.current||{}, deviceNames:o.deviceNames||{} }; }
+  catch(e){ log('loading bank sets failed: '+e); }
+}
+function setsFor(t){ return Object.entries(setsDb.sets).filter(([,v])=>v.target===t.id); }
+function createSet(t, name, banks, makeCurrent){
+  const id='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  setsDb.sets[id]={ name, target:t.id, banks:banks||{} };
+  if(makeCurrent) setsDb.current[t.id]=id;
+  persistSets(); return id;
+}
+function curSet(){
+  const t=curTarget; if(!t || !t.userSlots.length) return null;
+  let id=setsDb.current[t.id];
+  if(!id || !setsDb.sets[id] || setsDb.sets[id].target!==t.id){
+    const f=setsFor(t)[0]; id = f ? f[0] : createSet(t,'My banks',{},false);
+    setsDb.current[t.id]=id; persistSets();
+  }
+  return setsDb.sets[id];
+}
+function deviceNames(){ const k=deviceKey(); if(!k) return {}; return setsDb.deviceNames[k] || (setsDb.deviceNames[k]={}); }
+function bankName(s){ if(offline){ const b=curSet()?.banks[s]; return b ? (b.name||'') : ''; } return deviceNames()[s]||''; }
+
+function activeCount(bnds){ return bnds.filter(b=>b.gain).length; }
+function peakOf(bnds){ let p=-Infinity; for(let i=0;i<=240;i++){ const f=20*Math.pow(1000,i/240); let v=0; for(const b of bnds) if(b.gain) v+=magDb(b,f); if(v>p) p=v; } return p; }
+function clipsAt(bank){ return bank && peakOf(bank.bands)+bank.preamp>0.1; }
+function bankSummary(bank){ if(!bank) return 'empty'; const n=activeCount(bank.bands); return `${n} band${n===1?'':'s'} · ${bank.preamp.toFixed(1)} dB`; }
+// Makes an EQ fit a target: only the active bands are kept (at most the target's count, the
+// strongest first), gains and Q go into range, and filter types it can't run become peaking.
+function fitToTarget(bnds, pre, t){
+  const issues=[]; let act=bnds.filter(b=>b.gain).map(b=>({freq:b.freq,gain:b.gain,q:b.q,type:b.type||'PK'}));
+  if(act.length>t.bands){ const keep=new Set([...act].sort((a,b)=>Math.abs(b.gain)-Math.abs(a.gain)).slice(0,t.bands));
+    issues.push(`dropped the ${act.length-t.bands} weakest band(s)`); act=act.filter(b=>keep.has(b)); }
+  act=act.map(b=>{ const c={...b};
+    if(!t.types.includes(c.type)){ issues.push(`${TYPE_LABEL[c.type]||c.type} at ${c.freq} Hz became PK`); c.type='PK'; }
+    const g=clamp(c.gain,t.gainMin,t.gainMax); if(g!==c.gain){ issues.push(`gain at ${c.freq} Hz clamped to ${g}`); c.gain=g; }
+    const q=clamp(c.q,t.qMin,t.qMax); if(q!==c.q){ issues.push(`Q at ${c.freq} Hz clamped to ${q}`); c.q=q; }
+    c.freq=clamp(Math.round(c.freq),20,20000); c.gain=Math.round(c.gain*10)/10; c.q=Math.round(c.q*100)/100; return c; });
+  return { bands:act, preamp:Math.round(clamp(pre||0,-20,0)*10)/10, issues };
+}
+function sameBank(dev, bank){
+  if(!dev.ok || dev.bands.length!==bank.bands.length || Math.abs(dev.preamp-bank.preamp)>0.05) return false;
+  return dev.bands.every((d,i)=>{ const b=bank.bands[i];
+    return d.freq===Math.round(b.freq) && Math.abs(d.gain-b.gain)<0.05 && Math.abs(d.q-b.q)<0.02 && d.type===b.type; });
+}
+
+// ---- the bank card ----
+// FiiO writes go to whichever bank is active, so the button says which one that is. Offline,
+// the button stores into the selected bank of the set instead.
+function writeLabel(){
+  if(offline) return curTarget.userSlots.length ? (selBank!=null ? `Store in ${userLabel(selBank)}` : 'Store in bank') : 'Save EQ…';
+  if(GEN===3 && cable){ const n=cable.presets[activeBank]; return /^USER\d+$/.test(n||'') ? `Write to ${n}` : 'Pick a USER bank'; }
+  return 'Write to cable';
 }
 function renderPresets(active){
+  activeBank = active; const wb=$('writeBtn'); if(wb && !wb.disabled) wb.textContent=writeLabel();
   const box=$('presetGrid'); box.innerHTML='';
+  if(offline){ box.classList.add('banks'); if(curTarget.userSlots.length) renderBanks(box, active); return; }
   if(!cable || cable.hasPresets!==true) return;
+  box.classList.toggle('banks', GEN===3);
+  if(GEN===3){ renderBanks(box, active); return; }
   Object.keys(cable.presets).map(Number).sort((a,b)=>a-b).forEach(i=>{
     const name=cable.presets[i];
     const b=document.createElement('button'); b.className='preset'+(i===active?' on':'');
@@ -1955,14 +2255,270 @@ function renderPresets(active){
     b.onclick=()=>switchPreset(i); box.appendChild(b);
   });
 }
+// Only the banks you can write, plus bypass when a device is attached. The factory voicings
+// are left off; if the device happens to be on one, a line says so, since nothing is lit.
+// Offline, a dot marks the banks of the set that hold an EQ.
+function renderBanks(box, active){
+  const pm=presetsMap(), set=offline?curSet():null;
+  const slots=Object.keys(pm).map(Number).sort((a,b)=>a-b);
+  const users=slots.filter(i=>/^USER\d+$/.test(pm[i]));
+  users.forEach(i=>{
+    const b=document.createElement('button');
+    b.className='preset'+(i===active?' on':'')+(set && set.banks[i]?' has':'');
+    b.textContent=pm[i].replace('USER',''); const nm=bankName(i); b.title=nm?`${pm[i]} · ${nm}`:pm[i];
+    b.disabled=bankBusy; b.onclick=()=> offline ? selectOfflineBank(i) : switchPreset(i); box.appendChild(b);
+  });
+  const by=offline ? undefined : slots.find(i=>pm[i]==='Bypass');
+  if(by!==undefined){
+    const b=document.createElement('button'); b.className='preset wide'+(by===active?' on':'');
+    b.textContent='Bypass'; b.title='EQ bypassed'; b.disabled=bankBusy; b.onclick=()=>switchPreset(by); box.appendChild(b);
+  }
+  const n=document.createElement('div'); n.className='banknote';
+  if(active!=null && active!==by && !users.includes(active)) n.textContent=`On ${pm[active]||'bank '+active} (factory). Pick a USER bank to edit.`;
+  else if(users.includes(active)){ const nm=bankName(active);
+    n.textContent = offline ? `${pm[active]} · ${nm || (set.banks[active]?'unnamed':'empty')} · set "${set.name}"` : (nm ? `${pm[active]} · ${nm}` : ''); }
+  n.title=n.textContent;
+  if(n.textContent) box.appendChild(n);
+}
+
+// ---- offline mode ----
+function enterOffline(tid, nb){
+  const t=TARGETS[tid]||TARGETS.generic; nb=clamp(Math.round(nb)||t.bands,1,t.bands);
+  offline={ target:t, bands:nb }; curTarget=t; cable=null; cableEq=null;
+  try{ localStorage.setItem('dsp-offline', JSON.stringify({tid:t.id, nb})); }catch(e){}
+  applyCableCaps({ gen:t.gen, bands:nb, gainMin:t.gainMin, gainMax:t.gainMax, qMin:t.qMin, qMax:t.qMax, types:t.types });
+  $('devName').textContent=t.name; show('specId',false);
+  $('devBands').textContent=`${nb} · `+(-t.gainMin===t.gainMax ? `±${t.gainMax} dB` : `−${-t.gainMin} / +${t.gainMax} dB`);
+  $('statusText').textContent='offline · no device';
+  show('specs',true); show('topLinks',true); show('disconnectBtn',false); show('linkRead',false); show('linkConnect',true);
+  const banks=t.userSlots.length>0;
+  show('profCard',banks); show('linkBanks',banks); $('profTitle').textContent='Bank set';
+  selBank = banks ? t.userSlots[0] : null;
+  clearWriteNote(); show('connect',false); show('deviceList',false); show('workspace',true);
+  if(banks && curSet().banks[selBank]) loadBankIntoEditor(selBank); else renderAll();
+  renderPresets(selBank); $('writeBtn').textContent=writeLabel();
+  log(`offline · ${t.name} · ${nb} bands`); requestAnimationFrame(drawGraph);
+}
+function selectOfflineBank(s){
+  selBank=s;
+  if(curSet().banks[s]) loadBankIntoEditor(s);
+  renderPresets(s);
+}
+
+// ---- bank contents <-> editor ----
+function loadBankIntoEditor(s){
+  const bank=curSet()?.banks[s]; if(!bank) return;
+  if(offline) selBank=s;
+  const over=activeCount(bank.bands)-NB;
+  applyEq(bank.bands, bank.preamp, `${userLabel(s)}${bank.name?' "'+bank.name+'"':''}`);
+  if(over>0) showWriteNote(`${userLabel(s)} has ${over} more band(s) than the ${NB} you're designing with; they were left off. Storing back would drop them.`);
+  if(offline) renderPresets(s);
+}
+function storeIntoBank(s){
+  const set=curSet(), t=curTarget; if(!set) return;
+  const f=fitToTarget(model, preamp, t);
+  const prev=set.banks[s];
+  set.banks[s]={ name: prev ? prev.name : '', bands:f.bands, preamp:f.preamp };
+  persistSets();
+  bankMsg(`Stored the editor's EQ in ${userLabel(s)}.`+(f.issues.length?` To fit the ${t.name}: ${f.issues.join('; ')}.`:''), f.issues.length>0);
+  if(offline) renderPresets(selBank);
+  return f;
+}
+function fillFromSaved(s, name){
+  const e=loadSaved()[name]; if(!e) return;
+  const bnds=Array.isArray(e)?e:e.bands, pre=Array.isArray(e)?0:(e.preamp||0);
+  const f=fitToTarget(bnds, pre, curTarget);
+  curSet().banks[s]={ name, bands:f.bands, preamp:f.preamp }; persistSets();
+  bankMsg(`Put saved EQ "${name}" in ${userLabel(s)}.`+(f.issues.length?` To fit the ${curTarget.name}: ${f.issues.join('; ')}.`:''), f.issues.length>0);
+  if(offline) renderPresets(selBank);
+}
+function moveBank(from, to){
+  const set=curSet(), slots=curTarget.userSlots;
+  const arr=slots.map(x=>set.banks[x]||null), fi=slots.indexOf(from), ti=slots.indexOf(to);
+  const [m]=arr.splice(fi,1); arr.splice(ti,0,m);
+  set.banks={}; slots.forEach((x,i)=>{ if(arr[i]) set.banks[x]=arr[i]; });
+  persistSets(); bankMsg(`Moved ${userLabel(from)} to ${userLabel(to)}.`);
+}
+function sortBanks(){
+  const set=curSet(), slots=curTarget.userSlots;
+  const filled=slots.map(x=>set.banks[x]).filter(Boolean)
+    .sort((a,b)=> (a.name?0:1)-(b.name?0:1) || (a.name||'').localeCompare(b.name||'', undefined, {sensitivity:'base', numeric:true}));
+  set.banks={}; filled.forEach((b,i)=>{ set.banks[slots[i]]=b; });
+  persistSets(); bankMsg('Sorted by name; empty banks are last.');
+}
+
+// ---- the device side: one bank, all banks ----
+async function readDeviceBank(){
+  const bands=await call(window.dsp.readBank(),'readBank');
+  const pre=await call(window.dsp.readPreamp(),'readPreamp');
+  return { ok: bands.every(b=>b.ok),
+           bands: bands.filter(b=>b.ok && b.gain).map(b=>({freq:b.freq, gain:Math.round(b.gain*10)/10, q:b.q, type:b.type})),
+           preamp: typeof pre==='number' ? Math.round(pre*10)/10 : 0 };
+}
+// Switches the device to `slot` and writes `bank` there unless it already holds it. Writes are
+// checked by read-back in the backend; a short count is an error here.
+async function sendBank(slot, bank){
+  await call(window.dsp.setPreset(slot),'setPreset');
+  const cur=await readDeviceBank();
+  if(sameBank(cur, bank)) return { status:'same' };
+  const r=await call(window.dsp.writeBank(fillBands(bank.bands), bank.preamp),'writeBank');
+  if(r.acked < NB) throw new Error(`${userLabel(slot)}: only ${r.acked} of ${NB} bands read back as written.`);
+  return { status:'written', before:cur };
+}
+// Writes every filled bank of the current set (or just `only`), skipping banks the device
+// already holds and keeping what it overwrote as a set of its own. A whole-set write goes back
+// to the bank the device started on; sending one bank leaves the device on it, so you hear it.
+async function writeBanks(only){
+  const set=curSet(), t=curTarget; if(!set || !cable) return;
+  const slots=(only||t.userSlots).filter(s=>set.banks[s]);
+  if(!slots.length){ bankMsg('Nothing to write: every bank in this set is empty.'); return; }
+  const clipping=slots.filter(s=>clipsAt(set.banks[s]));
+  if(clipping.length && !writeAllArmed){
+    writeAllArmed=true;
+    bankMsg(`${clipping.map(userLabel).join(', ')} will clip. Click again to write anyway, or lower their preamp first.`, true);
+    return;
+  }
+  writeAllArmed=false;
+  bankBusy=true; bankStop=false; syncBankBusy();
+  const start=activeBank, names=deviceNames(), before={};
+  let wrote=0, same=0, err=null;
+  try{
+    for(const s of slots){
+      if(bankStop) break;
+      bankMsg(`${userLabel(s)}: switching and checking… (${wrote+same+1} of ${slots.length})`);
+      const r=await sendBank(s, set.banks[s]);
+      if(r.status==='same') same++;
+      else { wrote++; before[s]={ name: names[s] ? names[s]+' (before)' : '', bands:r.before.bands, preamp:r.before.preamp }; }
+      names[s]=set.banks[s].name||'';
+    }
+  }catch(e){ err=String(e&&e.message||e); }
+  if(!only && start!=null && !err){ try{ await call(window.dsp.setPreset(start),'setPreset'); }catch(e){} }
+  let backupName='';
+  if(Object.keys(before).length){ backupName=`Before write · ${stamp()}`; createSet(t, backupName, before, false); }
+  persistSets();
+  bankBusy=false; syncBankBusy();
+  const done = only ? `${userLabel(slots[0])} ${wrote?'written':'already matched'}` : `Wrote ${wrote}, ${same} already matched`;
+  const tail = (backupName?` What was overwritten is saved as set "${backupName}".`:'') + (only?'':' Empty banks were left as they are.');
+  if(err){ bankMsg(`Stopped: ${err} ${done} before that.${tail}`, true); if(isCableIssue(err)) reportCableIssue(err); }
+  else bankMsg(`${bankStop?'Stopped. ':''}${done}.${tail}`);
+  // The editor keeps whatever you were working on; it just no longer matches the device.
+  cableEq=null; await refreshMode(); renderBankModal();
+}
+// Reads every USER bank into a new set, then returns to the starting bank.
+async function readAllBanks(){
+  const t=curTarget; if(!t || !cable) return;
+  bankBusy=true; bankStop=false; syncBankBusy();
+  const start=activeBank, names=deviceNames(), banks={}; let n=0, err=null;
+  try{
+    for(const s of t.userSlots){
+      if(bankStop) break;
+      bankMsg(`Reading ${userLabel(s)}… (${++n} of ${t.userSlots.length})`);
+      await call(window.dsp.setPreset(s),'setPreset');
+      const cur=await readDeviceBank();
+      if(cur.bands.length || cur.preamp) banks[s]={ name:names[s]||'', bands:cur.bands, preamp:cur.preamp };
+    }
+  }catch(e){ err=String(e&&e.message||e); }
+  if(start!=null){ try{ await call(window.dsp.setPreset(start),'setPreset'); }catch(e){} }
+  bankBusy=false;
+  if(!err && !bankStop){
+    const name=`${cable.name} · read ${stamp()}`; createSet(t, name, banks, true);
+    bankMsg(`Read ${t.userSlots.length} banks into new set "${name}" (${Object.keys(banks).length} hold an EQ).`);
+  } else bankMsg(err ? `Stopped: ${err}` : 'Stopped; nothing was saved.', !!err);
+  syncBankBusy(); await refreshMode(); renderBankModal();
+}
+
+// ---- the bank set window ----
+function bankMsg(text, warn){ const el=$('bankMsg'); if(el){ el.textContent=text; el.style.color=warn?'var(--danger)':''; } if(text) log(text); }
+function syncBankBusy(){
+  ['bankReadAll','bankWriteAll','bankSort','setNew','setRename','setDelete','setSel'].forEach(id=>{ const e=$(id); if(e) e.disabled=bankBusy; });
+  show('bankCancel', bankBusy);
+  document.querySelectorAll('#bankList button, #bankList input, #bankList select').forEach(e=>{ e.disabled = bankBusy || e.dataset.off==='1'; });
+  const wb=$('writeBtn'); if(wb){ wb.disabled=bankBusy; if(!bankBusy) wb.textContent=writeLabel(); }
+  if(curTarget) renderPresets(offline?selBank:activeBank);
+}
+function openBanks(){ if(!curSet()) return; writeAllArmed=false; bankMsg(''); renderBankModal(); openModal('modalBanks'); }
+function renderBankModal(){
+  const t=curTarget, set=curSet(); if(!t || !set) return;
+  $('bankSub').textContent = offline
+    ? `${t.name}, designing offline. Store puts the editor's EQ in a bank, Load brings one back; drag ⋮⋮ to move a bank. Plug the device in to write the set.`
+    : `${cable.name}. Store puts the editor's EQ in a bank, Send writes one bank to the device now, Write all writes every filled bank. Drag ⋮⋮ to move a bank.`;
+  const sel=$('setSel'); sel.innerHTML='';
+  setsFor(t).forEach(([id,v])=>{ const o=document.createElement('option'); o.value=id; o.textContent=v.name; o.selected=(v===set); sel.appendChild(o); });
+  show('setSel',true); show('setName',false);
+  const box=$('bankList'); box.innerHTML='';
+  const saved=Object.keys(loadSaved());
+  const live = offline ? selBank : activeBank;
+  const mk=(label,title,fn,off)=>{ const b=document.createElement('button'); b.className='btn sm'; b.textContent=label; b.title=title; b.dataset.off=off?'1':''; b.onclick=fn; return b; };
+  t.userSlots.forEach(s=>{
+    const bank=set.banks[s]||null;
+    const row=document.createElement('div'); row.className='bankrow'+(live===s?' live':''); row.dataset.slot=s;
+    const grip=document.createElement('span'); grip.className='grip'; grip.textContent='⋮⋮'; grip.title='Drag to move this bank';
+    grip.onpointerdown=(e)=>startBankDrag(e, s);
+    const slot=document.createElement('span'); slot.className='slot'; slot.textContent=userLabel(s);
+    const nm=document.createElement('input'); nm.type='text'; nm.maxLength=40; nm.spellcheck=false;
+    nm.placeholder=bank?'name this EQ':'empty'; nm.value=bank?(bank.name||''):''; nm.dataset.off=bank?'':'1';
+    nm.onchange=()=>{ if(!set.banks[s]) return; set.banks[s].name=nm.value.trim(); persistSets(); if(offline) renderPresets(selBank); };
+    nm.onkeydown=(e)=>{ if(e.key==='Enter') nm.blur(); };
+    const meta=document.createElement('span'); meta.className='bmeta'+(clipsAt(bank)?' warn':''); meta.textContent=bankSummary(bank)+(clipsAt(bank)?' · clips':'');
+    const acts=document.createElement('span'); acts.className='bacts';
+    acts.append(
+      mk('Load','Load this bank into the editor',()=>{ loadBankIntoEditor(s); renderBankModal(); }, !bank),
+      mk('Store',"Put the editor's EQ in this bank",()=>{ storeIntoBank(s); renderBankModal(); const i=box.querySelector(`[data-slot="${s}"] input`); if(i && !i.value) i.focus(); }, false));
+    const pick=document.createElement('select'); pick.title='Fill this bank from a saved EQ'; pick.dataset.off=saved.length?'':'1';
+    pick.appendChild(new Option('Saved…',''));
+    saved.forEach(n=>pick.appendChild(new Option(n,n)));
+    pick.onchange=()=>{ if(pick.value){ fillFromSaved(s, pick.value); renderBankModal(); } };
+    acts.append(pick);
+    if(!offline) acts.append(mk('Send','Write this bank to the device now and switch to it',()=>writeBanks([s]), !bank));
+    acts.append(mk('✕','Empty this bank (the device is not touched)',()=>{ delete set.banks[s]; persistSets(); bankMsg(`Emptied ${userLabel(s)} in this set.`); renderBankModal(); if(offline) renderPresets(selBank); }, !bank));
+    row.append(grip, slot, nm, meta, acts);
+    box.appendChild(row);
+  });
+  const n=t.userSlots.filter(s=>set.banks[s]).length;
+  show('bankReadAll', !offline); show('bankWriteAll', !offline);
+  $('bankWriteAll').textContent = `Write ${n} bank${n===1?'':'s'} to device`;
+  syncBankBusy();
+}
+// Pointer-driven reordering, so moving a row can never be mistaken for a file drop (which the
+// window also listens for) and works the same in every webview.
+function startBankDrag(e, from){
+  if(bankBusy) return; e.preventDefault();
+  let over=null;
+  const mark=(el)=>{ if(over) over.classList.remove('drop'); over=el; if(over) over.classList.add('drop'); };
+  const move=(ev)=>{ const el=document.elementFromPoint(ev.clientX, ev.clientY); const row=el && el.closest('.bankrow'); mark(row && +row.dataset.slot!==from ? row : null); };
+  const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up);
+    const to = over ? +over.dataset.slot : null; mark(null); document.body.style.cursor='';
+    if(to!=null){ moveBank(from, to); renderBankModal(); if(offline) renderPresets(selBank); } };
+  document.body.style.cursor='grabbing';
+  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+}
+function beginSetRename(){
+  const set=curSet(); const inp=$('setName'); inp.value=set.name;
+  show('setSel',false); show('setName',true); inp.focus(); inp.select();
+}
+function finishSetRename(save){
+  const inp=$('setName'); if(inp.classList.contains('hidden')) return;
+  const v=inp.value.trim(); if(save && v){ curSet().name=v; persistSets(); }
+  renderBankModal(); if(offline) renderPresets(selBank);
+}
+let delArmed=null;
+function deleteSet(){
+  const t=curTarget, id=setsDb.current[t.id]; const b=$('setDelete');
+  if(delArmed!==id){ delArmed=id; b.textContent='Sure?'; setTimeout(()=>{ if(delArmed===id){ delArmed=null; b.textContent='Delete'; } },3000); return; }
+  delArmed=null; b.textContent='Delete';
+  const name=setsDb.sets[id].name; delete setsDb.sets[id]; delete setsDb.current[t.id]; persistSets();
+  curSet(); bankMsg(`Deleted set "${name}".`); renderBankModal(); if(offline) renderPresets(selBank);
+}
 async function refreshMode(){ try{ const a=await call(window.dsp.readMode(),'readMode'); renderPresets(a); }catch(e){} }
 async function readFromCable(){
   try{ const bands=await call(window.dsp.readBank(),'readBank');
     const mdl=bands.map((b,i)=> (b&&b.ok) ? {freq:b.freq,gain:roundGain(b.gain),q:b.q,type:TYPE_CYCLE.includes(b.type)?b.type:'PK'} : blankBand(defaultFreq(i)));
     pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain))); model=fillBands(mdl);
+    if(GEN===3){ const pre=await call(window.dsp.readPreamp(),'readPreamp'); if(typeof pre==='number') preamp=Math.round(clamp(pre,-20,0)*10)/10; }
     cableEq=model.map(b=>({...b}));
     log(`read ${bands.filter(b=>b&&b.ok).length} bands`); renderAll();
-  }catch(e){ log('read failed: '+(e&&e.message||e)); showWriteNote('Could not read the EQ from the cable, see the log.'); }
+  }catch(e){ const m=String(e&&e.message||e); log('read failed: '+m);
+    showWriteNote(GEN===3 && m!=='x' ? m : 'Could not read the EQ from the cable, see the log.'); }
 }
 // Surface a "wrong / missing cable" block from the dsp-core guard.
 function showWriteNote(msg){ const n=$('writeNote'); n.textContent=msg; show('writeNote',true); $('statusPill').classList.add('warn'); }
@@ -1983,6 +2539,13 @@ function autoPreampValue(){ const {p}=peak(); return p>0 ? -(Math.ceil(p*10)/10)
 // (must reduce level); in normal mode the user gets a choice (Auto headroom / write anyway).
 function writeToCable(){
   clearWriteNote();
+  if(offline){
+    if(!curTarget.userSlots.length){ renderSaved(); openModal('modalSaved'); $('saveName').focus(); return; }
+    if(selBank==null) return;
+    storeIntoBank(selBank);
+    const btn=$('writeBtn'); btn.textContent='Stored ✓'; setTimeout(()=>{ btn.textContent=writeLabel(); },1200);
+    return;
+  }
   const {eff,pf}=effPeak();
   if(eff>0.1){ openClipDialog(eff,pf); return; }
   doWrite();
@@ -2003,11 +2566,11 @@ async function doWrite(){
   try{ const r=await call(window.dsp.writeBank(out, preamp),'writeBank');
     // Gen-2 verifies by reading the bank back, so `acked` counts bands the cable is actually
     // holding. Gen-1 can only count frames it believes were acknowledged.
-    if(GEN===2){
+    if(GEN>=2){
       log(`wrote ${r.acked}/${NB} bands, verified by read-back; slot=${r.active}`);
       if(r.acked < NB){
         showWriteNote(`Only ${r.acked} of ${NB} bands read back as written. The EQ on the cable may not match what you see.`);
-        btn.textContent='Partly written'; setTimeout(()=>{btn.textContent='Write to cable';},1800);
+        btn.textContent='Partly written'; setTimeout(()=>{btn.textContent=writeLabel();},1800);
         await refreshMode(); return;
       }
     } else {
@@ -2015,11 +2578,11 @@ async function doWrite(){
     }
     cableEq=out.map(b=>({...b}));
     await refreshMode();
-    btn.textContent='Written ✓'; setTimeout(()=>{btn.textContent='Write to cable';},1400);
+    btn.textContent='Written ✓'; setTimeout(()=>{btn.textContent=writeLabel();},1400);
   }catch(e){ const m=String(e.message||e);
     if(isCableIssue(m)){ reportCableIssue(m); btn.textContent='Blocked'; }
-    else btn.textContent='Write failed';
-    setTimeout(()=>{btn.textContent='Write to cable';},1600);
+    else { if(GEN===3) showWriteNote(m); btn.textContent='Write failed'; }
+    setTimeout(()=>{btn.textContent=writeLabel();},1600);
   }
   finally { btn.disabled=false; }
 }
@@ -2036,7 +2599,7 @@ async function detect(){
     found.forEach(d=>{
       const b=document.createElement('button');
       b.className='devicebtn';
-      b.innerHTML=`<span>${d.name}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · gen ${d.gen}</span>`;
+      b.innerHTML=`<span>${d.name}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · ${d.gen===3?'FiiO':'gen '+d.gen}</span>`;
       b.onclick=()=>openCable(d);
       box.appendChild(b);
     });
@@ -2053,14 +2616,16 @@ async function openCable(d){
   }catch(e){ $('connectTitle').textContent='Error opening cable, see log'; }
 }
 async function disconnect(){ try{ await window.dsp.close(); }catch(e){}
-  cable=null; cableEq=null; resetCableCaps(); clearWriteNote(); closeModal();
+  cable=null; cableEq=null; offline=null; curTarget=null; selBank=null; activeBank=null; bankStop=true;
+  resetCableCaps(); clearWriteNote(); closeModal();
+  show('specId',true); show('linkRead',true); show('linkConnect',false); show('linkBanks',false); $('writeBtn').textContent='Write to cable';
   show('workspace',false); show('specs',false); show('topLinks',false); show('disconnectBtn',false); show('deviceList',false);
   show('connect',true); $('connectTitle').textContent='Looking for a cable…'; }
 
 // ---- modals ----
-const MODALS=['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalSaved','modalTreble'];
+const MODALS=['modalEqText','modalBackup','modalLog','modalClip','modalAbout','modalFr','modalSaved','modalTreble','modalBanks','modalDrop'];
 function openModal(id){ if(id!=='modalTreble') ttHalt(); show('overlay',true); MODALS.forEach(m=>show(m, m===id)); }
-function closeModal(){ ttHalt(); ttResult=null; show('overlay',false); MODALS.forEach(m=>show(m,false)); }
+function closeModal(){ ttHalt(); ttResult=null; dropQueue=[]; dropCur=null; show('overlay',false); MODALS.forEach(m=>show(m,false)); }
 function flashLink(el,txt){ const o=el.textContent; el.textContent=txt; setTimeout(()=>{el.textContent=o;},1100); }
 
 // ---- theme ----
@@ -2090,6 +2655,22 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('disconnectBtn').onclick=disconnect;
   // connect
   $('connectBtn').onclick=detect;
+  // offline: remember the last choice as a convenience
+  try{ const o=JSON.parse(localStorage.getItem('dsp-offline')||'null'); if(o){ if(TARGETS[o.tid]) $('offTarget').value=o.tid; if(o.nb) $('offBands').value=o.nb; } }catch(e){}
+  $('offStart').onclick=()=>enterOffline($('offTarget').value, +$('offBands').value);
+  $('linkConnect').onclick=disconnect;
+  // bank sets
+  $('linkBanks').onclick=openBanks;
+  $('setSel').onchange=(e)=>{ setsDb.current[curTarget.id]=e.target.value; persistSets(); bankMsg(''); renderBankModal(); if(offline){ if(curSet().banks[selBank]) loadBankIntoEditor(selBank); renderPresets(selBank); } };
+  $('setNew').onclick=()=>{ createSet(curTarget, `Set ${setsFor(curTarget).length+1}`, {}, true); bankMsg(''); renderBankModal(); if(offline) renderPresets(selBank); beginSetRename(); };
+  $('setRename').onclick=beginSetRename;
+  $('setName').onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); finishSetRename(true); } else if(e.key==='Escape'){ e.stopPropagation(); finishSetRename(false); } };
+  $('setName').onblur=()=>finishSetRename(true);
+  $('setDelete').onclick=deleteSet;
+  $('bankSort').onclick=()=>{ sortBanks(); renderBankModal(); if(offline) renderPresets(selBank); };
+  $('bankWriteAll').onclick=()=>writeBanks(null);
+  $('bankReadAll').onclick=readAllBanks;
+  $('bankCancel').onclick=()=>{ bankStop=true; bankMsg('Stopping after this bank…'); };
   // band list header
   $('sortBtn').onclick=()=>{ pushUndo(); model.sort((a,b)=>a.freq-b.freq); renderAll(); };
   $('flatBtn').onclick=()=>{ pushUndo(); model=blankModel(); preamp=0; renderAll(); };
@@ -2167,6 +2748,18 @@ window.addEventListener('DOMContentLoaded', ()=>{
   $('backupRestore').onclick=()=>$('backupFile').click();
   $('backupFile').onchange=(e)=>{ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value=''; };
   $('eqTextApply').onclick=applyEqText;
+  $('eqExportBtn').onclick=exportEq;
+  // file drop, anywhere in the window
+  window.addEventListener('dragenter',(e)=>{ if(!hasFiles(e)) return; e.preventDefault(); dragDepth++; show('dropZone',true); });
+  window.addEventListener('dragover',(e)=>{ if(!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+  window.addEventListener('dragleave',(e)=>{ if(!hasFiles(e)) return; if(--dragDepth<=0){ dragDepth=0; show('dropZone',false); } });
+  window.addEventListener('drop',(e)=>{ if(!hasFiles(e)) return; e.preventDefault(); dragDepth=0; show('dropZone',false); handleDrop(e.dataTransfer.files); });
+  document.querySelectorAll('#dropRig button').forEach(b=>b.onclick=()=>{ dropCur.rig=b.dataset.droprig; syncDropForm(); });
+  document.querySelectorAll('#dropKind button').forEach(b=>b.onclick=()=>{ dropCur.kind=b.dataset.dropkind; syncDropForm(); });
+  $('dropName').oninput=syncDropForm;
+  $('dropName').onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); addDropped(); } };
+  $('dropAdd').onclick=addDropped;
+  $('dropSkip').onclick=nextDrop;
   $('eqTextCopy').onclick=()=>{ const t=$('eqText'); t.select(); try{ document.execCommand('copy'); }catch(e){} flashLink($('eqTextCopy'),'Copied'); };
   // clip-warning dialog
   $('clipCancel').onclick=closeModal;
@@ -2180,6 +2773,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   window.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && !$('overlay').classList.contains('hidden') && !tt) closeModal(); });   // Stop ends a test, not Escape
 
   initSaved();
+  initSets();
   initFrs();
   loadTrebleView();
   loadFitCfg();
