@@ -1,10 +1,10 @@
 # FreeDSP Studio
 
-An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, and Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
+An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, and Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, and FiiO's BTR17. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
 
 I made this because the stock app is clunky, locked to whole-dB steps, and it turns out the cable can do WAY more than the app lets on.
 
-> Independent project. Nothing to do with Moondrop, CrinEar or any other manufacturer here — not affiliated, not endorsed. For cables you own.
+> Independent project. Nothing to do with Moondrop, CrinEar, FiiO or any other manufacturer here — not affiliated, not endorsed. For cables you own.
 
 ![FreeDSP Studio — frequency-response view with the EQ auto-fitted to a target](assets/screenshot.png)
 
@@ -31,7 +31,7 @@ Either way you only do it once. Or run from source (below), which avoids the who
 
 ## Supported cables
 
-There are two generations of cable, speaking two unrelated protocols. The app detects which by asking, so a cable not listed here will still work if it answers the gen-2 handshake.
+There are two generations of cable, speaking two unrelated protocols, plus FiiO's own protocol. The app detects which by asking, so a cable not listed here will still work if it answers the gen-2 handshake.
 
 **Gen 1** — HID report `0x01` over the control pipe, 9 bands:
 
@@ -48,9 +48,17 @@ There are two generations of cable, speaking two unrelated protocols. The app de
 | Moondrop FreeDSP Mini | `35D8:98D4` | 8 | ±12 dB | PK / LS / HS | Default, Bass Enhance ×2, Space, Treble Enhance |
 | CrinEar Protocol Micro | `3302:C20F` | 8 | ±10 dB | PK / LS / LPF / HPF | none (custom bank only) |
 
+**FiiO** — HID report 7 over the interrupt endpoints, framed with a CRC-8. The device designs its own filters from freq / gain / Q, and holds ten writable USER banks:
+
+| Device | USB ID (VID:PID) | Bands | Gain | Filter types | Banks |
+|---|---|---|---|---|---|
+| FiiO BTR17 | `2972:0088` | 10 | −24 / +12 dB | PK / LS / HS | USER1–10, plus the factory voicings and bypass |
+
+The BTR17 only shares its EQ with EQ switched on in its settings; the app tells you if it's off. Other FiiO models need their bank layout worked out first, so they aren't picked up yet.
+
 Plug in more than one and the app asks which to drive.
 
-Windows and macOS. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs a udev rule granting access to VID `35d8` and `3302`, and someone with a cable to test it.
+Windows and macOS. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs a udev rule granting access to VID `35d8`, `3302` and `2972`, and someone with a cable to test it.
 
 ## What it does
 
@@ -58,8 +66,11 @@ Windows and macOS. The gen-1 HID transport is split per platform — Windows goe
 - Parametric EQ — 9 bands on gen-1 cables, 8 on gen-2 — with the filter types and gain range each cable actually supports.... drag the numbered nodes straight on the graph, or type exact values (`8k`, `-3.5`, `0.71`; arrow keys nudge)
 - Proper fractional-dB gain, not the whole numbers the stock app limits you to (see below)
 - A real preamp, with an auto headroom button and a clip check before every write
-- Switches the active firmware profile on the DUSK, MAY and FreeDSP Mini
-- squig.link / AutoEQ import and export (Equalizer APO parametric text)
+- Switches the active firmware profile on the DUSK, MAY and FreeDSP Mini, and the active bank on the BTR17
+- Bank sets on the BTR17: name all ten USER banks, drag them into order, and read or write the whole set at once. Write all skips banks that already match, checks each one it writes, and keeps whatever it overwrote as a set you can write back
+- Works without a device: design for a BTR17 bank set, or a generic device with 1 to 10 bands, and write it when you next plug in
+- squig.link / AutoEQ import and export (Equalizer APO parametric text): drop an EQ file on the window to apply it, or Export to save one
+- Drop an FR file on the window to add it as a measurement or target, with its name and rig
 - Frequency-response view: load your IEM's measurement and a target, see the EQ'd result
 - Auto-fit the EQ to a target (based on AutoEq): either up to a frequency, leaving the rest of the bands free, or over the whole target using your treble correction
 - Treble listening test: a listening test through the cable that finds the peaks and dips your ear hears above ~6 kHz, where a 711 can't be trusted. Two methods: "stands out" (does a band poke out of pink noise?) and "louder / quieter" (match neighbouring bands by level). Saved per IEM, tip and method, reused with any target, and switchable on and off in the FR view
@@ -127,6 +138,15 @@ This is a clean, independent implementation of the wire protocols, written for i
 If this saved you from the stock app, you can [buy me a coffee](https://buymeacoffee.com/effectiveequivalent). No pressure.
 
 ## Changelog
+
+### 0.6.0
+- FiiO BTR17 support: read and write any of its ten USER banks, switch banks, and a per-bank preamp (its global gain). Bank switches wait for the device to settle, since for up to 0.7 s afterwards it still reports the previous bank's EQ, which is what makes FiiO's own web app show the wrong curve. The app also never sends the command FiiO's code calls factory reset, which another tool sends as "save" on this device
+- Bank sets: name, order, sort, read all and write all for the BTR17's banks, with an automatic copy of whatever a write overwrote
+- No-cable mode: design for a BTR17 bank set or a generic 1 to 10 band device without anything plugged in
+- Drag and drop: a squig / AutoEQ / APO parametric EQ is applied to the current EQ; a frequency response asks for a name, rig (711 by default) and source or target
+- Export the EQ as a parametric .txt
+- The graph's floor follows the device, down to -24 dB on the BTR17
+- Low-pass and high-pass filters survive a round trip through EQ text instead of turning into peaking filters
 
 ### 0.5.2
 - Auto-fit now spends the bands you ask for. Since 0.4.0 it dropped any band that improved the overall error by less than 0.15 dB, and because that error is averaged over the whole fit range, bands fixing real 1 dB wiggles were thrown away: with 8 bands it typically used about 4. Bands are now only dropped if they do essentially nothing (under 0.02 dB). On 31 test IEMs this took the fit from about 4 to 7 bands used and cut the error by 20 to 30%. To keep bands free for hand tuning, lower the Bands count
