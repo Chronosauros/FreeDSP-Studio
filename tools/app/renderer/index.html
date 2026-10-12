@@ -436,7 +436,7 @@
               <option value="fiio-btr17">FiiO BTR17 · bank set</option>
               <option value="generic">Generic</option>
             </select>
-            <label class="off-bands" title="How many bands to design with">bands <input type="number" id="offBands" min="1" max="10" step="1" value="10"></label>
+            <label class="off-bands" title="How many bands to design with">bands <input type="number" id="offBands" min="1" max="31" step="1" value="10"></label>
             <button class="btn" id="offStart">Start</button>
           </div>
         </div>
@@ -744,7 +744,7 @@
 
   <div class="modal hidden" id="modalAbout">
     <div class="mhead">
-      <div><div class="mtitle">FreeDSP Studio</div><div class="msub">v0.6.3 · open-source EQ editor for USB-C DSP cables and dongles</div></div>
+      <div><div class="mtitle">FreeDSP Studio</div><div class="msub">v0.7.0 · open-source EQ editor for USB-C DSP cables and dongles</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
     <div style="font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted)">
@@ -805,6 +805,7 @@
   window.dsp = {
     open:      function(sel){ return wrap(invoke('open', sel || {})); },
     list:      function(){ return wrap(invoke('list_devices')); },
+    bankTargets: function(){ return wrap(invoke('bank_targets')); },
     readPreamp:function(){ return wrap(invoke('read_preamp')); },
     close:     function(){ return wrap(invoke('close')); },
     readMode:  function(){ return wrap(invoke('read_mode')); },
@@ -850,6 +851,7 @@ const clamp = (v,lo,hi) => Math.min(hi, Math.max(lo, v));
 // values until a cable is opened, so the UI is sane before anything is connected.
 let NB = 9;
 let GEN = 1;
+let PRE_STEP = 0.1;   // the step the device stores its preamp in: 1 dB on the KA15 and whole-dB registers
 
 let LIM = { fMin:20, fMax:20000, gMin:-12, gMax:3, qMin:0.2, qMax:10 }; // gMax = default cap; on gen-1 the +6 dB mode raises it
 // Placeholder frequencies for blank bands. Nine bands land on octaves; any other count is
@@ -937,6 +939,7 @@ function roundGain(v){ return GEN>=2 ? Math.round(v*10)/10 : Math.round(v); }
 // Reshapes the UI around whatever cable just opened.
 function applyCableCaps(info){
   GEN = info.gen || 1;
+  PRE_STEP = info.preampStep || 0.1;
   NB = info.bands || 9;
   TYPE_CYCLE = (info.types && info.types.length) ? info.types.slice() : ['PK','LSQ','HSQ'];
   LIM = { fMin:20, fMax:20000,
@@ -950,7 +953,7 @@ function applyCableCaps(info){
   syncCapUI();
 }
 function resetCableCaps(){
-  GEN=1; NB=9; TYPE_CYCLE=['PK','LSQ','HSQ'];
+  GEN=1; NB=9; PRE_STEP=0.1; TYPE_CYCLE=['PK','LSQ','HSQ'];
   LIM={ fMin:20, fMax:20000, gMin:-12, gMax:3, qMin:0.2, qMax:10 };
   setDbRange(LIM.gMin);
   syncCapUI();
@@ -1012,7 +1015,11 @@ function drawGraph(){
 
 // ---- preamp / clip ----
 function syncPreampUI(){ const v=$('preampVal'); if(v && document.activeElement!==v) v.value=preamp.toFixed(1); }
-function setPreamp(v){ preamp=Math.round(clamp(v,-20,0)*10)/10; syncPreampUI(); drawGraph(); updateClip(); }
+// Preamp is headroom, so it rounds down to the device's step: on a whole-dB device -4.2 becomes
+// -5, never -4.
+function preRound(v){ v=clamp(v,-20,0); return PRE_STEP>=1 ? Math.floor(v+1e-9) : Math.round(v*10)/10; }
+function headroomFor(p){ return p>0 ? (PRE_STEP>=1 ? -Math.ceil(p-1e-9) : -(Math.ceil(p*10)/10)) : 0; }
+function setPreamp(v){ preamp=preRound(v); syncPreampUI(); drawGraph(); updateClip(); }
 function updateClip(){
   const {p:raw,pf}=peak(); const eff=raw+preamp; const el=$('clip'), t=$('clipText');
   if(eff>0.1){ el.className='clip warn';
@@ -1420,7 +1427,7 @@ function autoFit(){
   bands.sort((a,b)=>a.freq-b.freq);
   pushUndo();
   model=fillBands(bands);
-  const {p}=peak(); preamp = p>0 ? -(Math.ceil(p*10)/10) : 0;   // headroom
+  const {p}=peak(); preamp = headroomFor(p);   // headroom
   if(tm && !trebleView){ trebleView=true; saveTrebleView(); syncTrebleUI(); }   // show it the way it was fitted
   renderAll();
   return true;
@@ -1809,7 +1816,7 @@ function applyTrebleToEq(prof){
   if(!keep.length) return { ok:true, msg:'Nothing to add: the current EQ already matches this result in the treble.' };
   pushUndo();
   keep.forEach((b,k)=>{ model[free[k]]=b; });
-  const {p}=peak(); if(p+preamp>0) preamp=-(Math.ceil(p*10)/10);   // keep headroom
+  const {p}=peak(); if(p+preamp>0) preamp=headroomFor(p);   // keep headroom
   renderAll();
   const left=free.length-keep.length;
   return { ok:true, msg:`Added ${keep.length} treble band${keep.length>1?'s':''}${left?` (${left} still flat)`:''}. Write to the cable to hear it.` };
@@ -2010,7 +2017,7 @@ function applyFilters({preamp:filePreamp, filters, skipped}){
   });
   pushUndo();
   model = fillBands(clamped);
-  preamp = Math.round(clamp(filePreamp,-20,0)*10)/10;
+  preamp = preRound(filePreamp);
   const flat = NB - clamped.length;
   let msg = `Applied ${clamped.length} filter(s)${flat?`, ${flat} slot(s) flat`:''}. Preamp ${preamp.toFixed(1)} dB.`;
   if(skipped) msg += ` ${skipped} disabled skipped.`;
@@ -2142,7 +2149,7 @@ function saveCurrent(){
 function applyEq(bnds, pre, label){
   const mdl=bnds.map(b=>({freq:b.freq,gain:b.gain,q:b.q,type:b.type||'PK'}));
   pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain)));
-  model=fillBands(mdl); preamp=Math.round(clamp(pre||0,-20,0)*10)/10; renderAll(); log('loaded '+label);
+  model=fillBands(mdl); preamp=preRound(pre||0); renderAll(); log('loaded '+label);
 }
 function nBands(bnds){ return bnds.filter(b=>b.gain!==0).length; }
 function renderSaved(){
@@ -2178,16 +2185,18 @@ function renderCable(info){
   $('devName').textContent=info.name;
   $('devId').textContent=`${info.vid.toString(16).toUpperCase().padStart(4,'0')}:${info.pid.toString(16).toUpperCase().padStart(4,'0')}`;
   $('devBands').textContent = -info.gainMin===info.gainMax ? `${info.bands} · ±${info.gainMax} dB` : `${info.bands} · −${-info.gainMin} / +${info.gainMax} dB`;
-  $('statusText').textContent = info.firmware ? `connected · fw ${info.firmware}` : 'connected';
+  $('statusText').textContent = (info.firmware ? `connected · fw ${info.firmware}` : 'connected') + (info.tested===false ? ' · untested model' : '');
   show('specs',true); show('topLinks',true); show('disconnectBtn',true);
   // Active-profile switching only applies to cables that have firmware voicings to switch
   // between — DUSK and MAY on gen-1, the FreeDSP Mini on gen-2.
   show('profCard', info.hasPresets===true);
   // FiiO devices hold several writable banks rather than firmware voicings.
-  $('profTitle').textContent = GEN===3 ? 'EQ bank' : 'Cable voicing';
+  $('profTitle').textContent = bankDevice() ? 'EQ bank' : 'Cable voicing';
 }
 // ---- targets, offline mode and bank sets ----
-// A target is the device an EQ is designed for. The BTR17's numbers mirror dsp_fiio.rs: ten
+// A target is the device an EQ is designed for. Every bank device comes from the backend at
+// startup (loadBankTargets); the BTR17 is also written out here in case that call fails. Its
+// numbers mirror dsp_fiio.rs: ten
 // USER banks at 160-169, bypass at 240, -24/+12 dB, Q 0.25-8, peaking and shelves.
 const BTR17_PRESETS = (()=>{ const o={}; for(let i=0;i<10;i++) o[160+i]='USER'+(i+1); o[240]='Bypass'; return o; })();
 const TARGETS = {
@@ -2202,9 +2211,36 @@ let selBank = null;      // offline: the bank the editor stores into
 let bankBusy = false;    // a read-all / write-all is running
 let bankStop = false;
 let writeAllArmed = false;   // second click on Write all after a clip warning
-function targetForCable(info){ return (info && info.gen===3 && info.vid===0x2972 && info.pid===0x0088) ? TARGETS['fiio-btr17'] : null; }
+// Target ids are the model name, slugged: "FIIO BTR17" -> "fiio-btr17", which is the id the
+// BTR17's bank sets were saved under before other bank devices existed.
+function targetId(name){ return String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+function targetFromInfo(t){
+  return { id:targetId(t.name), name:t.name, gen:t.gen||3, bands:t.bands, gainMin:t.gainMin, gainMax:t.gainMax,
+           qMin:t.qMin, qMax:t.qMax, types:t.types, presets:t.presets, userSlots:t.userSlots||[] };
+}
+function targetForCable(info){
+  if(!info || !info.userSlots || !info.userSlots.length) return null;
+  const t=targetFromInfo(info); TARGETS[t.id] = TARGETS[t.id] || t; return t;
+}
+// Every bank-holding model the backend knows, offered for designing offline.
+async function loadBankTargets(){
+  try{ const list=await call(window.dsp.bankTargets(),'bankTargets');
+    const sel=$('offTarget'), keep=sel.value, generic=sel.querySelector('option[value="generic"]');
+    list.forEach(x=>{ const t=targetFromInfo({...x, gen: x.family==='Fosi Audio' ? 5 : 3}); TARGETS[t.id]=t;
+      if(!sel.querySelector(`option[value="${t.id}"]`)){
+        const o=document.createElement('option'); o.value=t.id; o.textContent=`${t.name} · bank set${x.tested?'':' (untested)'}`;
+        sel.insertBefore(o, generic);
+      } });
+    if(TARGETS[keep]) sel.value=keep;
+  }catch(e){}
+}
 function deviceKey(){ return cable ? `${cable.vid.toString(16)}:${cable.pid.toString(16)}` : null; }
 function presetsMap(){ return cable ? cable.presets : (offline ? offline.target.presets : {}); }
+// Devices that hold several writable banks (FiiO, Fosi) rather than one editable EQ.
+function bankDevice(){ return !!(cable && cable.userSlots && cable.userSlots.length); }
+function userSlotsNow(){ return cable ? (cable.userSlots||[]) : (offline ? offline.target.userSlots : []); }
+function isOffSlot(name){ return /^(bypass|close eq)$/i.test(name||''); }
+function bankShort(name){ return String(name).replace(/^USER|^Custom /,''); }
 function userLabel(s){ return presetsMap()[s] || ('bank '+s); }
 function stamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 
@@ -2265,7 +2301,7 @@ function sameBank(dev, bank){
 // the button stores into the selected bank of the set instead.
 function writeLabel(){
   if(offline) return curTarget.userSlots.length ? (selBank!=null ? `Store in ${userLabel(selBank)}` : 'Store in bank') : 'Save EQ…';
-  if(GEN===3 && cable){ const n=cable.presets[activeBank]; return /^USER\d+$/.test(n||'') ? `Write to ${n}` : 'Pick a USER bank'; }
+  if(bankDevice()){ const n=cable.presets[activeBank]; return cable.userSlots.includes(activeBank) ? `Write to ${n}` : 'Pick a bank to write'; }
   return 'Write to cable';
 }
 function renderPresets(active){
@@ -2273,8 +2309,8 @@ function renderPresets(active){
   const box=$('presetGrid'); box.innerHTML='';
   if(offline){ box.classList.add('banks'); if(curTarget.userSlots.length) renderBanks(box, active); return; }
   if(!cable || cable.hasPresets!==true) return;
-  box.classList.toggle('banks', GEN===3);
-  if(GEN===3){ renderBanks(box, active); return; }
+  box.classList.toggle('banks', bankDevice());
+  if(bankDevice()){ renderBanks(box, active); return; }
   Object.keys(cable.presets).map(Number).sort((a,b)=>a-b).forEach(i=>{
     const name=cable.presets[i];
     const b=document.createElement('button'); b.className='preset'+(i===active?' on':'');
@@ -2288,20 +2324,20 @@ function renderPresets(active){
 function renderBanks(box, active){
   const pm=presetsMap(), set=offline?curSet():null;
   const slots=Object.keys(pm).map(Number).sort((a,b)=>a-b);
-  const users=slots.filter(i=>/^USER\d+$/.test(pm[i]));
+  const users=userSlotsNow().filter(i=>pm[i]!==undefined);
   users.forEach(i=>{
     const b=document.createElement('button');
     b.className='preset'+(i===active?' on':'')+(set && set.banks[i]?' has':'');
-    b.textContent=pm[i].replace('USER',''); const nm=bankName(i); b.title=nm?`${pm[i]} · ${nm}`:pm[i];
+    b.textContent=bankShort(pm[i]); const nm=bankName(i); b.title=nm?`${pm[i]} · ${nm}`:pm[i];
     b.disabled=bankBusy; b.onclick=()=> offline ? selectOfflineBank(i) : switchPreset(i); box.appendChild(b);
   });
-  const by=offline ? undefined : slots.find(i=>pm[i]==='Bypass');
+  const by=offline ? undefined : slots.find(i=>isOffSlot(pm[i]));
   if(by!==undefined){
     const b=document.createElement('button'); b.className='preset wide'+(by===active?' on':'');
-    b.textContent='Bypass'; b.title='EQ bypassed'; b.disabled=bankBusy; b.onclick=()=>switchPreset(by); box.appendChild(b);
+    b.textContent=pm[by]; b.title='EQ off'; b.disabled=bankBusy; b.onclick=()=>switchPreset(by); box.appendChild(b);
   }
   const n=document.createElement('div'); n.className='banknote';
-  if(active!=null && active!==by && !users.includes(active)) n.textContent=`On ${pm[active]||'bank '+active} (factory). Pick a USER bank to edit.`;
+  if(active!=null && active!==by && !users.includes(active)) n.textContent=`On ${pm[active]||'bank '+active} (factory). Pick a bank above to edit.`;
   else if(users.includes(active)){ const nm=bankName(active);
     n.textContent = offline ? `${pm[active]} · ${nm || (set.banks[active]?'unnamed':'empty')} · set "${set.name}"` : (nm ? `${pm[active]} · ${nm}` : ''); }
   n.title=n.textContent;
@@ -2541,11 +2577,11 @@ async function readFromCable(){
   try{ const bands=await call(window.dsp.readBank(),'readBank');
     const mdl=bands.map((b,i)=> (b&&b.ok) ? {freq:b.freq,gain:roundGain(b.gain),q:b.q,type:TYPE_CYCLE.includes(b.type)?b.type:'PK'} : blankBand(defaultFreq(i)));
     pushUndo(); ensureCeilFor(Math.max(0,...mdl.map(b=>b.gain))); model=fillBands(mdl);
-    if(GEN===3){ const pre=await call(window.dsp.readPreamp(),'readPreamp'); if(typeof pre==='number') preamp=Math.round(clamp(pre,-20,0)*10)/10; }
+    if(GEN>=3){ const pre=await call(window.dsp.readPreamp(),'readPreamp'); if(typeof pre==='number') preamp=preRound(pre); }
     cableEq=model.map(b=>({...b}));
     log(`read ${bands.filter(b=>b&&b.ok).length} bands`); renderAll();
   }catch(e){ const m=String(e&&e.message||e); log('read failed: '+m);
-    showWriteNote(GEN===3 && m!=='x' ? m : 'Could not read the EQ from the cable, see the log.'); }
+    showWriteNote(GEN>=3 && m!=='x' ? m : 'Could not read the EQ from the cable, see the log.'); }
 }
 // Surface a "wrong / missing cable" block from the dsp-core guard.
 function showWriteNote(msg){ const n=$('writeNote'); n.textContent=msg; show('writeNote',true); $('statusPill').classList.add('warn'); }
@@ -2561,7 +2597,7 @@ async function switchPreset(idx){ log('switch -> preset '+idx); clearWriteNote()
   try{ await call(window.dsp.setPreset(idx),'setPreset'); await refreshMode(); await readFromCable(); }
   catch(e){ const m=String(e.message||e); if(isCableIssue(m)) reportCableIssue(m); } }
 function effPeak(){ const {p,pf}=peak(); return { eff:p+preamp, raw:p, pf }; }
-function autoPreampValue(){ const {p}=peak(); return p>0 ? -(Math.ceil(p*10)/10) : 0; }
+function autoPreampValue(){ return headroomFor(peak().p); }
 // Write entry point: guard clipping first. In +6 dB mode a clipping EQ is hard-blocked
 // (must reduce level); in normal mode the user gets a choice (Auto headroom / write anyway).
 function writeToCable(){
@@ -2608,7 +2644,7 @@ async function doWrite(){
     btn.textContent='Written ✓'; setTimeout(()=>{btn.textContent=writeLabel();},1400);
   }catch(e){ const m=String(e.message||e);
     if(isCableIssue(m)){ reportCableIssue(m); btn.textContent='Blocked'; }
-    else { if(GEN===3) showWriteNote(m); btn.textContent='Write failed'; }
+    else { if(GEN>=3) showWriteNote(m); btn.textContent='Write failed'; }
     setTimeout(()=>{btn.textContent=writeLabel();},1600);
   }
   finally { btn.disabled=false; }
@@ -2626,7 +2662,7 @@ async function detect(){
     found.forEach(d=>{
       const b=document.createElement('button');
       b.className='devicebtn';
-      b.innerHTML=`<span>${escHtml(d.name)}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · ${d.gen===3?'FiiO':'gen '+d.gen}</span>`;
+      b.innerHTML=`<span>${escHtml(d.name)}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · ${({3:'FiiO',4:'KT Micro',5:'Fosi Audio'})[d.gen]||'gen '+d.gen}</span>`;
       b.onclick=()=>openCable(d);
       box.appendChild(b);
     });
@@ -2638,7 +2674,8 @@ async function openCable(d){
     if(!info){ $('connectTitle').textContent='No cable found, plug one in and click Detect'; return; }
     cable=info; renderCable(info); clearWriteNote();
     show('connect',false); show('deviceList',false); show('workspace',true);
-    log(`${info.name} · gen ${info.gen} · ${info.bands} bands · gain ${info.gainMin}..${info.gainMax} dB`);
+    log(`${info.name} · ${info.family||'gen '+info.gen} · ${info.bands} bands · gain ${info.gainMin}..${info.gainMax} dB`);
+    if(info.tested===false) log(`${info.name} hasn't been tested with this app yet: its settings come from the maker's own app or devicePEQ. Writes are still read back and checked.`);
     await refreshMode(); await readFromCable(); requestAnimationFrame(drawGraph);
   }catch(e){ $('connectTitle').textContent='Error opening cable, see log'; }
 }
@@ -2683,7 +2720,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // connect
   $('connectBtn').onclick=detect;
   // offline: remember the last choice as a convenience
-  try{ const o=JSON.parse(localStorage.getItem('dsp-offline')||'null'); if(o){ if(TARGETS[o.tid]) $('offTarget').value=o.tid; if(o.nb) $('offBands').value=o.nb; } }catch(e){}
+  const restoreOffline=()=>{ try{ const o=JSON.parse(localStorage.getItem('dsp-offline')||'null'); if(o){ if(TARGETS[o.tid]) $('offTarget').value=o.tid; if(o.nb) $('offBands').value=o.nb; } }catch(e){} };
+  restoreOffline(); loadBankTargets().then(restoreOffline);
   $('offStart').onclick=()=>enterOffline($('offTarget').value, +$('offBands').value);
   $('linkConnect').onclick=disconnect;
   // bank sets
@@ -2705,9 +2743,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // preamp
   $('preampVal').onfocus=(e)=>requestAnimationFrame(()=>e.target.select());
   $('preampVal').onchange=$('preampVal').onblur=(e)=>{ const v=parseField('gain',e.target.value);
-    if(isFinite(v) && Math.round(clamp(v,-20,0)*10)/10!==preamp){ pushUndo(); setPreamp(v); } e.target.value=preamp.toFixed(1); };
+    if(isFinite(v) && preRound(v)!==preamp){ pushUndo(); setPreamp(v); } e.target.value=preamp.toFixed(1); };
   $('preampVal').onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); } else if(e.key==='Escape'){ e.stopPropagation(); e.target.value=preamp.toFixed(1); e.target.blur(); } };
-  $('autoPreampBtn').onclick=()=>{ pushUndo(); const {p}=peak(); setPreamp(p>0? -(Math.ceil(p*10)/10) : 0); };
+  $('autoPreampBtn').onclick=()=>{ pushUndo(); setPreamp(autoPreampValue()); };
   $('hiGainBtn').onclick=()=>{ pushUndo(); hiGain=!hiGain; if(!hiGain) model.forEach(b=>{ if(b.gain>LIM.gMax) b.gain=LIM.gMax; }); renderAll(); };
   // saved
   $('saveBtn').onclick=saveCurrent; $('saveName').onkeydown=(e)=>{ if(e.key==='Enter') saveCurrent(); };

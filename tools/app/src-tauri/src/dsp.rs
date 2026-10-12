@@ -54,6 +54,14 @@ pub struct CableInfo {
     /// means the cable has no preamp at all.
     pub preamp: String,
     pub firmware: Option<String>,
+    /// Banks that can be written, on devices that hold several (FiiO, Fosi). Empty elsewhere.
+    pub user_slots: Vec<u8>,
+    /// Who makes the protocol, for display: "Moondrop", "Walkplay", "FiiO", "KT Micro" …
+    pub family: String,
+    /// Whether this model has been checked on real hardware with this app.
+    pub tested: bool,
+    /// The step the device stores its preamp in, dB. The UI rounds headroom down to it.
+    pub preamp_step: f64,
 }
 
 /// The gen-1 cables, described in the same terms as a gen-2 profile so the UI has one shape

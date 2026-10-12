@@ -1,10 +1,14 @@
 mod dsp;
 mod dsp2;
 mod dsp_fiio;
+mod dsp_fosi;
+mod dsp_kt;
 mod hid;
 mod hid_api;
 mod hid_fiio;
+mod hid_desc;
 mod hid_gen2;
+mod hid_report;
 
 #[cfg(windows)]
 mod hid_win;
@@ -110,6 +114,12 @@ async fn list_devices() -> Result<Vec<hid::Listed>, String> {
     blk(hid::list).await?
 }
 
+/// Every bank-holding model, for designing offline.
+#[tauri::command]
+fn bank_targets() -> Vec<hid::BankTarget> {
+    hid::bank_targets()
+}
+
 #[tauri::command]
 async fn read_preamp() -> Result<Option<f64>, String> {
     blk(hid::read_preamp).await?
@@ -157,6 +167,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open,
             list_devices,
+            bank_targets,
             read_preamp,
             close,
             read_mode,

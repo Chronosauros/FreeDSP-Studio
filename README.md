@@ -1,10 +1,10 @@
 # FreeDSP Studio
 
-An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, and Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, and FiiO's BTR17. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
+An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, FiiO's dongles, amps and receivers (BTR17, KA15 and the rest of FiiO's HID range, plus JadeAudio and SnowSky), KT Micro-chipset IEMs and cables, and the Fosi Audio DS3. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
 
 I made this because the stock app is clunky, locked to whole-dB steps, and it turns out the cable can do WAY more than the app lets on.
 
-> Independent project. Nothing to do with Moondrop, CrinEar, FiiO or any other manufacturer here — not affiliated, not endorsed. For cables you own.
+> Independent project. Nothing to do with Moondrop, CrinEar, FiiO, Fosi Audio or any other manufacturer here — not affiliated, not endorsed. For cables you own.
 
 ![FreeDSP Studio — frequency-response view with the EQ auto-fitted to a target](assets/screenshot.png)
 
@@ -31,9 +31,11 @@ Either way you only do it once. Or run from source (below), which avoids the who
 
 ## Supported cables
 
-There are two generations of cable, speaking two unrelated protocols, plus FiiO's own protocol. The app detects which by asking, so a cable not listed here will still work if it answers the gen-2 handshake.
+Five protocols. The app tells them apart by vendor id and by asking, so a device not listed here will often still work: anything that answers the gen-2 handshake is driven as a gen-2 cable.
 
-**Gen 1** — HID report `0x01` over the control pipe, 9 bands:
+**Tested** means checked on real hardware with this app. Everything else is driven from the maker's own app (FiiO's fiiocontrol.fiio.com) or from [devicePEQ](https://github.com/jeromeof/devicePEQ), the open-source code behind graph.hangout.audio's device EQ, and the app shows "untested model" when one is connected. Every write is still read back and checked, so a model that behaves differently says so rather than failing silently.
+
+**Gen 1** — HID report `0x01` over the control pipe, 9 bands. Tested:
 
 | Cable | USB ID (VID:PID) | Firmware presets |
 |---|---|---|
@@ -41,24 +43,61 @@ There are two generations of cable, speaking two unrelated protocols, plus FiiO'
 | Moondrop MAY | `35D8:1497` | Standard / Bass Head / Reference / No Bass / Harman |
 | Moondrop FreeDSP | `35D8:1496` | none (custom bank only) |
 
-**Gen 2** — HID report `0x4B` over the interrupt endpoints, 8 bands, with a real preamp register:
+devicePEQ's "Conexant" handler is this same protocol, so the original FreeDSP and Moondrop ECHO-B are the same thing.
+
+**Gen 2** — HID report `0x4B` over the interrupt endpoints, with a real preamp register. Tested:
 
 | Cable | USB ID (VID:PID) | Bands | Gain | Filter types | Firmware presets |
 |---|---|---|---|---|---|
 | Moondrop FreeDSP Mini | `35D8:98D4` | 8 | ±12 dB | PK / LS / HS | Default, Bass Enhance ×2, Space, Treble Enhance |
 | CrinEar Protocol Micro | `3302:C20F` | 8 | ±10 dB | PK / LS / LPF / HPF | none (custom bank only) |
 
-**FiiO** — HID report 7 over the interrupt endpoints, framed with a CRC-8. The device designs its own filters from freq / gain / Q, and holds ten writable USER banks:
+Untested: Walkplay's chip firmware comes in "schemes" with a fixed band count, gain range and filter set, and a product id belongs to one scheme whatever the brand. The app carries Walkplay's catalogue of about 350 product ids, by way of devicePEQ, across 19 vendor ids (Moondrop, CrinEar, Tanchjim, Truthear, ddHiFi, LETSHUOER, NiceHCK, BGVP, Kiwi Ears and others), and only probes devices on the less specific vendor ids if their descriptor declares report `0x4B`.
 
-| Device | USB ID (VID:PID) | Bands | Gain | Filter types | Banks |
+| Scheme | Bands | Gain | Filter types |
+|---|---|---|---|
+| 10, 21 | 8 | ±10 dB | PK |
+| 11 | 8 | ±10 dB | PK / LS / LPF / HPF |
+| 13, 16, 18 | 10 | ±10 dB | PK / LS / HS |
+| 15 | 8 | ±10 dB | PK / LS / HS |
+| 17 | 5 | ±10 dB | PK / LS / HS |
+| 19 | 6 | ±10 dB | PK / LS / HS |
+| 20 | 10 | ±10 dB | PK |
+
+Also known by name: Moondrop FreeDSP Pro, MOONRIVER 3, Rays, AG Rays, Marigold, DAWN PRO 2, Echo A, DHA15, Deco Audio System, INN Deco75-DH; Tanchjim Space Pro, OLA II DSP, Stargate II; CrinEar Protocol Max; NiceHCK Octave; Truthear KeyX; ddHiFi DSP Cable/IEM - Memory; BGVP MX1; LETSHUOER DT04; generic CS43131/CS43198 dongles.
+
+**FiiO** (with JadeAudio and SnowSky) — HID report 7 (1 on the KA17, 2 on JadeAudio), framed with a CRC-8. The device designs its own filters from freq / gain / Q, and holds several writable USER banks, which the app switches between like the presets above:
+
+| Device | Tested | Bands | Gain | Filter types | Writable banks |
 |---|---|---|---|---|---|
-| FiiO BTR17 | `2972:0088` | 10 | −24 / +12 dB | PK / LS / HS | USER1–10, plus the factory voicings and bypass |
+| FiiO BTR17 | yes | 10 | −24 / +12 dB | PK / LS / HS | USER1–10 |
+| FiiO KA15 | yes | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| FiiO KA17 | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| FiiO BTR13 | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| FiiO QX13 | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1–10 |
+| FiiO QX11 | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–10 |
+| FiiO K13 R2R, BR15 R2R | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1–10 |
+| FiiO AIR AMP | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1–10 |
+| FiiO Air Link, BT11 | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1–10 |
+| FiiO FX17 | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1 |
+| FiiO FP3, OAK NANO | | 10 | −24 / +12 dB | PK / LS / HS | USER1 |
+| FiiO LS-TC2 | | 10 | ±12 dB | PK / LS / HS | USER1 |
+| FiiO FG3 | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 (music voicings only) |
+| RETRO NANO | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| SNOWSKY Melody | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| SNOWSKY TINY A, TINY B | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| JadeAudio JIEZI | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| JadeAudio JA11 | | as reported | ±12 dB | PK / LS / HS | USER1 |
 
-The BTR17 only shares its EQ with EQ switched on in its settings; the app tells you if it's off. Other FiiO models need their bank layout worked out first, so they aren't picked up yet.
+Bands are as the device reports them (10 on every model checked so far). FiiO devices only share their EQ with EQ switched on in their settings; the app tells you if it's off. The KA15 keeps its preamp in whole dB, so the app rounds headroom down to the next whole dB for it. FiiO's K15, K17 and K19 talk over a USB serial port rather than HID, and aren't supported yet.
+
+**KT Micro** — HID report `0x4B`, a register per band parameter, vendor id `31B2`. Untested, 5 bands, ±10 dB, Q up to 5, PK / LS / HS: Moondrop CDSP and Chu II DSP, Tanchjim One DSP, Bunny DSP and Fission, Kiwi Ears Allegro Mini, Allegro Pro, Chorus and S-Link, JCally JM12 (KT02H20, peaking only), and other KT Micro parts on devicePEQ's defaults.
+
+**Fosi Audio** — feature report 1, float parameters. Untested: the Fosi Audio DS3, 8 bands, ±12 dB, five writable banks (Custom 1–5). It works out its own headroom, so there's no preamp to set. devicePEQ measured that it realises a peak's Q divided by the gain-dependent RBJ factor, and places shelves by the other corner-frequency convention; both are corrected for, as devicePEQ does.
 
 Plug in more than one and the app asks which to drive.
 
-Windows and macOS. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs a udev rule granting access to VID `35d8`, `3302` and `2972`, and someone with a cable to test it.
+Windows and macOS. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs a udev rule granting access to the vendor ids above (`35d8`, `3302`, `2972`, `0a12`, `31b2`, `152a` and the Walkplay ones), and someone with a cable to test it.
 
 ## What it does
 
@@ -66,9 +105,9 @@ Windows and macOS. The gen-1 HID transport is split per platform — Windows goe
 - Parametric EQ — 9 bands on gen-1 cables, 8 on gen-2 — with the filter types and gain range each cable actually supports.... drag the numbered nodes straight on the graph, or type exact values (`8k`, `-3.5`, `0.71`; arrow keys nudge)
 - Proper fractional-dB gain, not the whole numbers the stock app limits you to (see below)
 - A real preamp, with an auto headroom button and a clip check before every write
-- Switches the active firmware profile on the DUSK, MAY and FreeDSP Mini, and the active bank on the BTR17
-- Bank sets on the BTR17: name all ten USER banks, drag them into order, and read or write the whole set at once. Write all skips banks that already match, checks each one it writes, and keeps whatever it overwrote as a set you can write back
-- Works without a device: design for a BTR17 bank set, or a generic device with 1 to 10 bands, and write it when you next plug in
+- Switches the active firmware profile on the DUSK, MAY and FreeDSP Mini, and the active bank on FiiO and Fosi devices
+- Bank sets on devices with several writable banks (FiiO, Fosi): name the banks, drag them into order, and read or write the whole set at once. Write all skips banks that already match, checks each one it writes, and keeps whatever it overwrote as a set you can write back
+- Works without a device: design a bank set for any FiiO or Fosi model, or for a generic device with 1 to 10 bands, and write it when you next plug in
 - squig.link / AutoEQ import and export (Equalizer APO parametric text): drop an EQ file on the window to apply it, or Export to save one
 - Drop an FR file on the window to add it as a measurement or target, with its name and rig
 - Frequency-response view: load your IEM's measurement and a target, see the EQ'd result
@@ -138,6 +177,15 @@ This is a clean, independent implementation of the wire protocols, written for i
 If this saved you from the stock app, you can [buy me a coffee](https://buymeacoffee.com/effectiveequivalent). No pressure.
 
 ## Changelog
+
+### 0.7.0
+- FiiO KA15: read and write its three USER banks, switch banks, preamp. Tested on hardware. It carries FiiO's report on the same Consumer collection as its media keys (next to a Walkplay report it doesn't use for its banks), 63 bytes rather than the BTR17's 32, and stores its preamp in whole dB
+- Every other model FiiO's own web app drives over HID: KA17, BTR13, QX13, QX11, FX17, FP3, LS-TC2, OAK NANO, K13 R2R, BR15 R2R, AIR AMP, Air Link, BT11, FG3, RETRO NANO, SnowSky Melody / TINY A / TINY B, JadeAudio JIEZI and JA11, with each model's banks, gain range, filter types and write pacing taken from FiiO's app. Untested on hardware. devicePEQ measured that the KA17 and QX13 realise a peak's Q divided by the gain-dependent RBJ factor, so those two are sent a corrected Q
+- The report id, report length and collection a FiiO device uses now come from its own HID descriptor, rather than being assumed
+- KT Micro devices (Moondrop CDSP and Chu II DSP, Tanchjim One / Bunny / Fission, Kiwi Ears Allegro / Chorus / S-Link, JCally JM12 and others) and the Fosi Audio DS3, from devicePEQ. Untested on hardware
+- Walkplay: the product-id catalogue and per-scheme band counts, gain ranges and filter types, so the many Walkplay-chipset devices beyond the CrinEar Protocol Micro get their real limits instead of a conservative 8 bands. Named Moondrop gen-2 parts get the right preamp register, or none where the device works out its own headroom
+- Preamp rounds down to the step the device stores: whole dB on the KA15 and on gen-2 cables' whole-dB register, so Auto headroom never leaves a fraction of a dB of clipping
+- Design offline for any FiiO or Fosi model's bank set, not only the BTR17's
 
 ### 0.6.3
 - Auto-fit, "measurement only, up to a frequency": a sharp treble feature inside the range could pull every band onto itself, leaving the rest of the range uncorrected. Fitting a Xenns Top Pro to a Dusk up to 10 kHz used 5 of 10 bands and left the bass worse than no EQ. Bands no longer start on top of each other, and stacked bands that get merged are re-placed where error is left. On 39 measurement/target pairs fitted to 10 kHz, every one improved or stayed the same (average error 0.69 to 0.26 dB, bands used 5.7 to 9.9), and fits to 6 kHz and full range improved too

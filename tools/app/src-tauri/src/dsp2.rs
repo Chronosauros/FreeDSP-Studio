@@ -106,7 +106,111 @@ pub struct Profile {
     /// The slot the editable bank lives in — 7 on Moondrop parts, 101 on Walkplay ones.
     /// Band writes have to quote it, and switching away from it makes the EQ read-only.
     pub custom_slot: u8,
+    /// "Moondrop" or "Walkplay", for display.
+    pub family: String,
+    /// Checked on real hardware with this app, rather than taken from devicePEQ's tables.
+    pub tested: bool,
 }
+
+// Walkplay's chip firmware comes in "schemes", each with a fixed band count, gain range and set
+// of filter types, and a product id belongs to one scheme whatever the vendor id. The table is
+// devicePEQ's (github.com/jeromeof/devicePEQ, usbDeviceConfig.js), taken from Walkplay's own
+// catalogue; where a product id is listed under two schemes the first listed wins, as there.
+struct Scheme {
+    no: u8,
+    bands: usize,
+    gain: f64,
+    types: &'static [&'static str],
+    pids: &'static [u16],
+}
+
+const PK: &[&str] = &["PK"];
+const SHELVES: &[&str] = &["PK", "LSQ", "HSQ"];
+const LS_PASS: &[&str] = &["PK", "LSQ", "LP", "HP"];
+
+const SCHEMES: &[Scheme] = &[
+    Scheme { no: 11, bands: 8, gain: 10.0, types: LS_PASS, pids: &[
+        0xC20C, 0x0004, 0x00C0, 0x0104, 0x0880, 0x1230, 0x1231, 0x1233, 0x1237, 0x123F, 0x1240, 0x1241, 0x1243, 0x1244,
+        0x1245, 0x1248, 0x1249, 0x124A, 0x124B, 0x124C, 0x124D, 0x124E, 0x1251, 0x1261, 0x1262, 0x1264, 0x1266, 0x1269,
+        0x126A, 0x126B, 0x126C, 0x126D, 0x126E, 0x126F, 0x1272, 0x1278, 0x127A, 0x127D, 0x127E, 0x1281, 0x1282, 0x1283,
+        0x1284, 0x1285, 0x1286, 0x1287, 0x1288, 0x1289, 0x128A, 0x128B, 0x128C, 0x128D, 0x128E, 0x128F, 0x1292, 0x1293,
+        0x1294, 0x1295, 0x1296, 0x1297, 0x1298, 0x1299, 0x129A, 0x129B, 0x129C, 0x129D, 0x129F, 0x12B3, 0x12C0, 0x12C1,
+        0x12C3, 0x12C4, 0x12C5, 0x12C6, 0x12C8, 0x12C9, 0x12CA, 0x12CB, 0x12CC, 0x12CD, 0x12CE, 0x12DB, 0x12E9, 0x132B,
+        0x13A3, 0x13A4, 0x13A5, 0x13AB, 0x13C0, 0x13C1, 0x13D3, 0x13D4, 0x13D7, 0x13D9, 0x13DC, 0x3302, 0x4302, 0x43C1,
+        0x43C3, 0x43D1, 0x43D5, 0x43DC, 0x43E7, 0x51C0, 0x60D2, 0x9121, 0x9123, 0x9124, 0x9125, 0x93C0, 0x93C1, 0x93D1,
+        0x98C0, 0x98C1, 0x98C2, 0x98D1, 0x98D2, 0x98D5, 0xA862, 0xC204, 0xC207, 0xC208, 0xC209, 0xC20A, 0xC20E, 0xC20F,
+        0xC211, 0xC212, 0xC213, 0xC214, 0xC215, 0xC217, 0xF806, 0xF807, 0xFF01] },
+    Scheme { no: 16, bands: 10, gain: 10.0, types: SHELVES, pids: &[
+        0x011D, 0x39E0, 0x4301, 0x4302, 0x4304, 0x4305, 0x4306, 0x430D, 0x430E, 0x430F, 0x4311, 0x4312, 0x4313, 0x4316,
+        0x4318, 0x4319, 0x431D, 0x4321, 0x4322, 0x4323, 0x4324, 0x4325, 0x4326, 0x4327, 0x4329, 0x432A, 0x432C, 0x4351,
+        0x4352, 0x4355, 0x4358, 0x4359, 0x435A, 0x435C, 0x435D, 0x435E, 0x4360, 0x4361, 0x4363, 0x4364, 0x4366, 0x4367,
+        0x4380, 0x4381, 0x4382, 0x4383, 0x4386, 0x43B1, 0x43B6, 0x43B7, 0x43B8, 0x43BC, 0x43BE, 0x43BF, 0x43C0, 0x43C2,
+        0x43C5, 0x43C6, 0x43C7, 0x43C8, 0x43C9, 0x43CA, 0x43CC, 0x43CD, 0x43CF, 0x43D7, 0x43D8, 0x43DA, 0x43DB, 0x43DE,
+        0x43E1, 0x43E4, 0x43E6, 0x43E8, 0x43EC, 0x43EF, 0x9201, 0x98D4, 0xEE10, 0xEE20, 0xF808] },
+    Scheme { no: 15, bands: 8, gain: 10.0, types: SHELVES, pids: &[
+        0x012A, 0x35D8, 0x39C1, 0x4353, 0x4357, 0x4362, 0x4370, 0x43CB, 0x43D6, 0x43D9, 0x43DF, 0x43E2, 0x43E3, 0x43EA,
+        0x43EB] },
+    Scheme { no: 13, bands: 10, gain: 10.0, types: SHELVES, pids: &[
+        0x011B, 0x0123, 0x120C, 0x1320, 0x1321, 0x1326, 0x1327, 0x1328, 0x1329, 0x132A, 0x1330, 0x1332, 0x1333, 0x1334,
+        0x13A9, 0x13AC, 0x13AE, 0x13AF, 0x13B0, 0x13B1, 0x13B2, 0x13B4, 0x13B6, 0x13B9, 0x13BA, 0x13BB, 0x13BE, 0x13BF,
+        0x13DF, 0x23C0, 0x23C1, 0x60C0, 0x60C1, 0x60C3, 0x60C6, 0x60C7, 0x60C9, 0x60CA, 0x60CB, 0x60D1, 0x60E1, 0xB301,
+        0xB302] },
+    Scheme { no: 17, bands: 5, gain: 10.0, types: SHELVES, pids: &[
+        0x2010, 0x201D, 0x201E, 0x2030, 0x2036, 0x2038, 0x203A, 0x203E, 0x2040, 0x2043, 0x2044, 0x2048, 0x2049, 0x20E1,
+        0x20E2, 0x20E3, 0x20E5, 0x20E7, 0x20E8, 0x20EA, 0x20EC, 0x20EE, 0x20EF, 0x20FF, 0x2DC1] },
+    Scheme { no: 18, bands: 10, gain: 10.0, types: SHELVES, pids: &[
+        0x39A0, 0x39A2, 0x39A3, 0x39C2, 0x39C3, 0x39C4, 0x39C6, 0x39C7, 0x39C8, 0x39C9, 0x39CD, 0x39CE, 0x39CF, 0x44D1,
+        0x44D2, 0x44D3, 0x44D6, 0x44D7, 0x44D9] },
+    Scheme { no: 10, bands: 8, gain: 10.0, types: PK, pids: &[0x0881, 0x0888] },
+    Scheme { no: 19, bands: 6, gain: 10.0, types: SHELVES, pids: &[
+        0x129F, 0x231E, 0x231F, 0x2320, 0x2321, 0x2323, 0x2326, 0x232B, 0x232C, 0x2334, 0x23E2, 0x23EE] },
+    Scheme { no: 20, bands: 10, gain: 10.0, types: PK, pids: &[0x0883, 0x1323, 0x13B7] },
+    Scheme { no: 21, bands: 8, gain: 10.0, types: PK, pids: &[
+        0x0880, 0x08F2, 0x13F2, 0x3DB0, 0x3DC1, 0x3DC4, 0x3DC5, 0x3DC6, 0x3DC7, 0x3DC8, 0x3DC9, 0x3DCA, 0x3DCC, 0x3DCD] },
+];
+
+/// Models devicePEQ knows by product name, for parts whose product id isn't in a scheme or
+/// whose name says more than the id does. (name, bands, gain min, gain max, q max, types,
+/// preamp). Moondrop's own parts take the 0.1 dB PRE_GAIN register, except those that work out
+/// their own headroom from the coefficients ("none"), where a preamp on top would be counted
+/// twice. Walkplay parts take the whole-dB global register.
+struct Named {
+    name: &'static str,
+    bands: usize,
+    gain: (f64, f64),
+    q_max: f64,
+    types: &'static [&'static str],
+    preamp: &'static str,
+    family: &'static str,
+}
+
+const NAMED: &[Named] = &[
+    Named { name: "FreeDSP Pro", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "none", family: "Moondrop" },
+    Named { name: "MOONRIVER 3", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "none", family: "Moondrop" },
+    Named { name: "AG Rays", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: PK, preamp: "pre", family: "Moondrop" },
+    Named { name: "Rays", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: PK, preamp: "none", family: "Moondrop" },
+    Named { name: "Marigold", bands: 8, gain: (-12.0, 6.0), q_max: 10.0, types: PK, preamp: "pre", family: "Moondrop" },
+    Named { name: "DAWN PRO2", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "pre", family: "Moondrop" },
+    Named { name: "Echo A", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: PK, preamp: "pre", family: "Moondrop" },
+    Named { name: "DHA15", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "pre", family: "Moondrop" },
+    Named { name: "Deco Audio System", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "pre", family: "Moondrop" },
+    Named { name: "INN Deco75-DH Audio", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "pre", family: "Moondrop" },
+    Named { name: "TANCHJIM-SPACE PRO", bands: 10, gain: (-10.0, 10.0), q_max: 10.0, types: PK, preamp: "global", family: "Walkplay" },
+    // Tanchjim's own app caps this one's Q at 5.
+    Named { name: "TANCHJIM-OLA II DSP", bands: 8, gain: (-10.0, 10.0), q_max: 5.0, types: PK, preamp: "global", family: "Walkplay" },
+    Named { name: "TANCHJIM-STARGATE II", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: PK, preamp: "global", family: "Walkplay" },
+    Named { name: "Protocol Max", bands: 10, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+    Named { name: "Octave", bands: 10, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+    Named { name: "CS43131 HiFi Audio DSP", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: LS_PASS, preamp: "global", family: "Walkplay" },
+    // devicePEQ: this one works out its own headroom.
+    Named { name: "CS43198 HiFi DSP Audio", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: LS_PASS, preamp: "none", family: "Walkplay" },
+    Named { name: "DAWN PRO 2", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+    Named { name: "TRUTHEAR KEYX", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+    Named { name: "ddHiFi DSP Cable - Memory", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+    Named { name: "ddHiFi DSP IEM - Memory", bands: 8, gain: (-12.0, 12.0), q_max: 10.0, types: SHELVES, preamp: "pre", family: "Moondrop" },
+    Named { name: "BGVP MX1", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+    Named { name: "DT04", bands: 8, gain: (-10.0, 10.0), q_max: 10.0, types: SHELVES, preamp: "global", family: "Walkplay" },
+];
 
 fn profile(vid: u16, pid: u16, product: &str) -> Profile {
     let types = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<String>>();
@@ -144,6 +248,8 @@ fn profile(vid: u16, pid: u16, product: &str) -> Profile {
                 (7, "Custom EQ"),
             ]),
             custom_slot: 7,
+            family: "Moondrop".into(),
+            tested: true,
         },
         // CrinEar Protocol Micro. 8 bands, +/-10 dB, low shelf but no high shelf, and
         // low/high pass instead; preamp is the whole-dB global gain register.
@@ -159,24 +265,42 @@ fn profile(vid: u16, pid: u16, product: &str) -> Profile {
             preamp_buffer: -5.0,
             presets: slots(&[(101, "Custom EQ")]),
             custom_slot: 101,
+            family: "Walkplay".into(),
+            tested: true,
         },
-        // Anything else that answers the gen-2 handshake. Deliberately conservative: 8 bands
-        // and +/-10 dB is the smallest of the known profiles, so a cable we haven't
-        // characterised can't be driven past what it accepts.
-        _ => Profile {
-            name,
-            bands: 8,
-            gain_min: -10.0,
-            gain_max: 10.0,
-            q_min: 0.1,
-            q_max: 10.0,
-            types: types(&["PK", "LSQ", "HSQ"]),
-            preamp: "global".into(),
-            preamp_buffer: 0.0,
+        _ => {
             // Slot unknown, so the editable one is whatever the cable reports at open.
-            presets: BTreeMap::new(),
-            custom_slot: 0,
-        },
+            let base = |bands, gmin, gmax, qmax, t: &[&str], pre: &str, family: &str| Profile {
+                name: name.clone(),
+                bands,
+                gain_min: gmin,
+                gain_max: gmax,
+                q_min: 0.1,
+                q_max: qmax,
+                types: types(t),
+                preamp: pre.into(),
+                preamp_buffer: 0.0,
+                presets: BTreeMap::new(),
+                custom_slot: 0,
+                family: family.into(),
+                tested: false,
+            };
+            let lower = product.trim().to_lowercase();
+            if let Some(n) = NAMED.iter().find(|n| n.name.to_lowercase() == lower) {
+                return base(n.bands, n.gain.0, n.gain.1, n.q_max, n.types, n.preamp, n.family);
+            }
+            let family = if vid == crate::dsp::MOONDROP_VID { "Moondrop" } else { "Walkplay" };
+            let pre = if vid == crate::dsp::MOONDROP_VID { "pre" } else { "global" };
+            if let Some(sc) = SCHEMES.iter().find(|sc| sc.pids.contains(&pid)) {
+                // The scheme number is what devicePEQ files Walkplay quirks under.
+                let family = format!("{} (Walkplay scheme {})", family, sc.no);
+                return base(sc.bands, -sc.gain, sc.gain, 10.0, sc.types, pre, &family);
+            }
+            // Anything else that answers the gen-2 handshake. Deliberately conservative: 8 bands
+            // and +/-10 dB is the smallest of the common profiles, so a cable we haven't
+            // characterised can't be driven past what it accepts.
+            base(8, -10.0, 10.0, 10.0, SHELVES, "global", family)
+        }
     }
 }
 

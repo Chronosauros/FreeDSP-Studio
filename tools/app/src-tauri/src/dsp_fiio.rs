@@ -1,12 +1,14 @@
 // FiiO DSP wire protocol — platform-free.
 //
-// FiiO's dongles and Bluetooth receivers (BTR17 so far) speak a protocol of their own, shared
-// with JadeAudio and SnowSky parts and unrelated to either Moondrop generation. Unlike both of
+// FiiO's dongles, amps and Bluetooth receivers speak a protocol of their own, shared with
+// JadeAudio and SnowSky parts and unrelated to either Moondrop generation. Unlike both of
 // those, the device does its own filter maths: the host sends freq / gain / Q / type and the
 // DSP designs the biquad. So there are no coefficients here, and gain is a real 0.1 dB value
 // rather than a label sitting beside them.
 //
-// Wire format — HID report 7, 32-byte input and output reports on the interrupt endpoints:
+// Wire format — one HID report each way on the interrupt endpoints. Report 7 on most models
+// (1 on the KA17, 2 on JadeAudio parts), 32 bytes on the BTR17 and 63 on the KA15; both come
+// from the device's descriptor, see hid_report.rs:
 //
 //     byte 0   AA (set) / BB (get)
 //     byte 1   0A (set) / 0B (get)
@@ -15,14 +17,14 @@
 //     byte 5   LEN — payload length
 //     byte 6.. payload, then a CRC-8 over everything before it, then EE
 //
-// Replies come back as input reports headed BB 0B with the CMD echoed at byte 4. They don't
-// echo the sequence number and carry a zero checksum, so the only thing to pair a reply with
-// its request is CMD, plus the band index for band reads.
+// Replies come back as input reports headed BB 0B with the CMD echoed at byte 4. The BTR17's
+// don't echo the sequence number and carry a zero checksum (the KA15's do both), so the only
+// thing to pair a reply with its request is CMD, plus the band index for band reads.
 //
-// The device holds a set of EQ banks: factory voicings, ten USER banks and a bypass slot. Band
-// writes always land on whichever bank is active, so writing a given bank means selecting it
-// first. Everything below was checked against a real BTR17 rather than taken on trust from
-// FiiO's web app, which is where the timing rules came from: see `set_preset`.
+// The device holds a set of EQ banks: factory voicings, one to ten USER banks and usually an
+// EQ-off slot. Band writes always land on whichever bank is active, so writing a given bank
+// means selecting it first. The timing rules below were measured on a real BTR17 rather than
+// taken on trust from FiiO's web app: see `set_preset`.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU16, Ordering};
@@ -35,9 +37,8 @@ use crate::dsp::{Band, BandIn, WriteResult};
 
 /// FiiO's two USB vendor ids.
 pub const VIDS: [u16; 2] = [0x2972, 0x0A12];
-pub const REPORT_ID: u8 = 7;
-/// Report length, report id excluded.
-pub const REPORT_LEN: usize = 32;
+/// Report ids FiiO parts have been seen on, most common first.
+pub const REPORT_IDS: [u8; 3] = [7, 1, 2];
 
 const SET: [u8; 2] = [0xAA, 0x0A];
 const GET: [u8; 2] = [0xBB, 0x0B];
@@ -47,6 +48,7 @@ const CMD_BAND: u8 = 0x15;
 const CMD_PRESET: u8 = 0x16;
 const CMD_GLOBAL_GAIN: u8 = 0x17;
 const CMD_SAVE: u8 = 0x19;
+const CMD_BAND_COUNT: u8 = 0x18;
 
 // The only commands this file will ever send as a *set*. FiiO's own app names 0x21
 // RESET_TO_FACTORY, and at least one third-party tool sends 0x21 as "save" on this very
@@ -73,21 +75,29 @@ const SWITCH_TIMEOUT_MS: u64 = 1500;
 pub trait TransportFiio {
     /// Sends one frame (report id excluded; the transport adds it and pads the report).
     fn send(&self, frame: &[u8]) -> bool;
-    /// Waits up to `timeout_ms` for one input report on REPORT_ID, report id stripped.
+    /// Waits up to `timeout_ms` for one input report on the control report, id stripped.
     fn recv(&self, timeout_ms: u64) -> Option<Vec<u8>>;
     /// Throws away input reports still queued from an earlier request.
     fn drain(&self);
 }
 
 // ---- device profiles ----
+//
+// One row per model FiiO's own web app (fiiocontrol.fiio.com) drives over HID, with its banks,
+// gain and Q range, filter types and pacing taken from that app's tables. FiiO's app picks the
+// row by USB product name, not product id, and so does this.
+//
+// Only the BTR17 and the KA15 have been checked on hardware here. The rest are FiiO's numbers,
+// driven through the same paced write and saved-copy check, and say so in `tested`.
 
-/// What a given FiiO model can do. Only models checked on hardware get one; anything else
-/// is refused rather than guessed at, since bank numbering differs per model (the KA15's
-/// USER banks are 7-9, the BTR17's are 160-169).
+/// What a given FiiO model can do.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     pub name: String,
+    /// FiiO's product name for the model, which is what the row was matched on.
+    pub model: String,
+    /// Bands, as the device reports them at open (FiiO's tables don't carry a count).
     pub bands: usize,
     pub gain_min: f64,
     pub gain_max: f64,
@@ -98,45 +108,148 @@ pub struct Profile {
     pub presets: BTreeMap<u8, String>,
     /// The banks that can be written. Factory voicings and bypass can't.
     pub user_slots: Vec<u8>,
+    /// The report FiiO's app talks on. The device's descriptor has the final say.
+    pub report_id: u8,
+    /// Gap between band writes, ms. FiiO's app queues commands 100, 200 or 300 ms apart by
+    /// model; the BTR17 needs at least 50 ms for a band to reach flash, and 150 is the floor.
+    pub pace_ms: u64,
+    /// Whether the device realises a peaking band's Q divided by the RBJ amplitude A at that
+    /// gain, as devicePEQ measured on the QX13 and KA17 (see `q_to_send`).
+    pub q_gain_law: bool,
+    /// The steps the device stores its global gain (the app's preamp) in. The KA15 keeps whole
+    /// dB: -4.2 reads back as -4.0.
+    pub preamp_step: f64,
+    /// Checked against real hardware in this app.
+    pub tested: bool,
+}
+
+struct Model {
+    name: &'static str,
+    gain: (f64, f64),
+    types: &'static [&'static str],
+    /// Factory voicings: switchable, never written.
+    voicings: &'static [(u8, &'static str)],
+    /// The writable banks.
+    users: &'static [(u8, &'static str)],
+    /// The EQ-off slot, if the model has one.
+    off: Option<(u8, &'static str)>,
+    report_id: u8,
+    pace_ms: u64,
+    q_gain_law: bool,
+    preamp_step: f64,
+    tested: bool,
+}
+
+const ALL: &[&str] = &["PK", "LSQ", "HSQ", "LP", "HP"];
+const SHELVES: &[&str] = &["PK", "LSQ", "HSQ"];
+const WIDE: (f64, f64) = (-24.0, 12.0);
+const NARROW: (f64, f64) = (-12.0, 12.0);
+
+const MUSIC: &[(u8, &str)] = &[(0, "Jazz"), (1, "Pop"), (2, "Rock"), (3, "Dance"), (4, "R&B"), (5, "Classic"), (6, "Hip-hop")];
+const MUSIC_RETRO: &[(u8, &str)] = &[(0, "Jazz"), (1, "Pop"), (2, "Rock"), (3, "Dance"), (4, "R&B"), (5, "Classic"), (6, "Hip-hop"), (8, "Retro")];
+const MUSIC_DAMP: &[(u8, &str)] = &[(0, "Jazz"), (1, "Pop"), (2, "Rock"), (3, "Dance"), (4, "R&B"), (5, "Classic"), (6, "Hip-hop"),
+                                     (8, "Retro"), (9, "sDamp-1"), (10, "sDamp-2")];
+const USER1: &[(u8, &str)] = &[(160, "USER1")];
+const USER3: &[(u8, &str)] = &[(160, "USER1"), (161, "USER2"), (162, "USER3")];
+const USER10: &[(u8, &str)] = &[
+    (160, "USER1"), (161, "USER2"), (162, "USER3"), (163, "USER4"), (164, "USER5"),
+    (165, "USER6"), (166, "USER7"), (167, "USER8"), (168, "USER9"), (169, "USER10"),
+];
+const LOW_USER3: &[(u8, &str)] = &[(7, "USER1"), (8, "USER2"), (9, "USER3")];
+const BYPASS: Option<(u8, &str)> = Some((240, "Bypass"));
+const CLOSE: Option<(u8, &str)> = Some((240, "Close EQ"));
+
+// One table row; the argument list is the row.
+#[allow(clippy::too_many_arguments)]
+const fn m(name: &'static str, gain: (f64, f64), types: &'static [&'static str], voicings: &'static [(u8, &'static str)],
+           users: &'static [(u8, &'static str)], off: Option<(u8, &'static str)>, report_id: u8, pace_ms: u64) -> Model {
+    Model { name, gain, types, voicings, users, off, report_id, pace_ms, q_gain_law: false, preamp_step: 0.1, tested: false }
+}
+
+const MODELS: &[Model] = &[
+    Model { tested: true, ..m("FIIO BTR17", WIDE, SHELVES, MUSIC, USER10, BYPASS, 7, 100) },
+    Model { tested: true, preamp_step: 1.0, ..m("FIIO KA15", NARROW, ALL, MUSIC, LOW_USER3, Some((10, "Close EQ")), 7, 100) },
+    // The KA17 moves R&B, Classic and Hip-hop up a slot to make room for USER1 at 4.
+    Model { q_gain_law: true, ..m("FIIO KA17", NARROW, ALL,
+            &[(0, "Jazz"), (1, "Pop"), (2, "Rock"), (3, "Dance"), (5, "R&B"), (6, "Classic"), (7, "Hip-hop")],
+            &[(4, "USER1"), (8, "USER2"), (9, "USER3")], Some((10, "Bypass")), 1, 200) },
+    m("FIIO BTR13", NARROW, ALL, MUSIC, LOW_USER3, Some((11, "Close EQ")), 7, 100),
+    Model { q_gain_law: true, ..m("FIIO QX13", WIDE, ALL, MUSIC_RETRO, USER10, BYPASS, 7, 100) },
+    m("FIIO FX17", WIDE, ALL, MUSIC, USER1, None, 7, 100),
+    m("FIIO FP3", WIDE, SHELVES, MUSIC, USER1, None, 7, 100),
+    m("FIIO LS-TC2", NARROW, SHELVES, MUSIC, USER1, None, 7, 100),
+    m("FIIO OAK NANO", WIDE, SHELVES, MUSIC, USER1, None, 7, 100),
+    m("SNOWSKY Melody", WIDE, ALL, MUSIC, USER3, CLOSE, 7, 100),
+    m("SNOWSKY TINY A", NARROW, ALL, MUSIC, USER3, CLOSE, 7, 100),
+    m("SNOWSKY TINY B", NARROW, ALL, MUSIC, USER3, CLOSE, 7, 100),
+    m("RETRO NANO", NARROW, ALL, MUSIC_DAMP, USER3, Some((11, "Close EQ")), 7, 100),
+    // FiiO's app says report 7 for the JIEZI; devicePEQ found it on 2, like the JA11. The
+    // descriptor decides between them.
+    m("JadeAudio JIEZI", NARROW, ALL, MUSIC, USER3, CLOSE, 2, 100),
+    m("JadeAudio JA11", NARROW, SHELVES, &[(0, "Vocal"), (1, "Classic"), (2, "Bass")], &[(3, "USER1")],
+      Some((4, "Close EQ")), 2, 100),
+    m("FIIO Air Link", WIDE, ALL, MUSIC, USER10, None, 7, 300),
+    m("FIIO BT11", WIDE, ALL, MUSIC, USER10, None, 7, 300),
+    m("FIIO K13 R2R", WIDE, ALL, MUSIC_DAMP, USER10, BYPASS, 7, 200),
+    m("FIIO BR15 R2R", WIDE, &["PK", "LSQ", "HSQ", "LP", "HP"], MUSIC_DAMP, USER10, BYPASS, 7, 200),
+    m("FIIO QX11", NARROW, ALL, MUSIC_DAMP, USER10, None, 7, 100),
+    m("FIIO AIR AMP", WIDE, ALL,
+      &[(0, "Jazz"), (1, "Pop"), (2, "Rock"), (3, "Dance"), (4, "R&B"), (5, "Classic"), (6, "Hip-hop"),
+        (7, "Monitor"), (9, "sDamp-1"), (10, "sDamp-2")], USER10, BYPASS, 7, 100),
+    // The FG3's game and cinema voicings sit at 257 and up, past what a one-byte bank switch
+    // can reach, so only its music voicings and USER banks are offered.
+    m("FIIO FG3", NARROW, ALL, &[(0, "Jazz"), (1, "Pop"), (4, "R&B")], USER3, None, 7, 100),
+];
+
+fn to_profile(m: &Model, product: &str) -> Profile {
+    Profile {
+        name: if product.is_empty() { m.name.to_string() } else { product.to_string() },
+        model: m.name.to_string(),
+        bands: 10,
+        gain_min: m.gain.0,
+        gain_max: m.gain.1,
+        q_min: 0.25,
+        q_max: 8.0,
+        types: m.types.iter().map(|s| s.to_string()).collect(),
+        presets: m.voicings.iter().chain(m.users).chain(m.off.iter())
+            .map(|(k, v)| (*k, v.to_string())).collect(),
+        user_slots: m.users.iter().map(|(k, _)| *k).collect(),
+        report_id: m.report_id,
+        pace_ms: m.pace_ms.max(DELAY_BAND_MS),
+        q_gain_law: m.q_gain_law,
+        preamp_step: m.preamp_step,
+        tested: m.tested,
+    }
+}
+
+/// The model row for a USB product name, matched the way FiiO's app does it: exact, or one
+/// name containing the other ("FIIO KA17 (MQA HID)", "Oak Nano"), ignoring case. FiiO's LS-TC2
+/// enumerates as "FIIO DSP Audio".
+fn model_for(product: &str) -> Option<&'static Model> {
+    let t = product.trim().to_lowercase();
+    let t = if t == "fiio dsp audio" { "fiio ls-tc2".to_string() } else { t };
+    if t.is_empty() {
+        return None;
+    }
+    MODELS.iter().find(|m| m.name.to_lowercase() == t).or_else(|| {
+        MODELS.iter().find(|m| {
+            let n = m.name.to_lowercase();
+            t.contains(&n) || (t.len() >= 5 && n.contains(&t))
+        })
+    })
 }
 
 pub fn profile(_vid: u16, pid: u16, product: &str) -> Option<Profile> {
-    let name = if product.is_empty() { "FiiO device".to_string() } else { product.to_string() };
-    match pid {
-        // BTR17. Ten bands, -24/+12 dB, peaking and both shelves; Q range is FiiO's own.
-        // USER n is bank 159 + n.
-        0x0088 => {
-            let mut presets: BTreeMap<u8, String> = [
-                (0, "Jazz"),
-                (1, "Pop"),
-                (2, "Rock"),
-                (3, "Dance"),
-                (4, "R&B"),
-                (5, "Classic"),
-                (6, "Hip-hop"),
-            ]
-            .iter()
-            .map(|(k, v)| (*k, v.to_string()))
-            .collect();
-            let user_slots: Vec<u8> = (160..=169).collect();
-            for (i, s) in user_slots.iter().enumerate() {
-                presets.insert(*s, format!("USER{}", i + 1));
-            }
-            presets.insert(240, "Bypass".into());
-            Some(Profile {
-                name,
-                bands: 10,
-                gain_min: -24.0,
-                gain_max: 12.0,
-                q_min: 0.25,
-                q_max: 8.0,
-                types: vec!["PK".into(), "LSQ".into(), "HSQ".into()],
-                presets,
-                user_slots,
-            })
-        }
-        _ => None,
+    if let Some(m) = model_for(product) {
+        return Some(to_profile(m, product));
     }
+    // A BTR17 that didn't give a product string.
+    (pid == 0x0088).then(|| to_profile(&MODELS[0], product))
+}
+
+/// Every model this file knows, for the app's device list and offline design.
+pub fn all_profiles() -> Vec<Profile> {
+    MODELS.iter().map(|m| to_profile(m, "")).collect()
 }
 
 // ---- frames ----
@@ -247,6 +360,15 @@ pub fn read_preset<T: TransportFiio + ?Sized>(dev: &T) -> Option<u8> {
     request(dev, CMD_PRESET, &[], |p| !p.is_empty()).map(|p| p[0])
 }
 
+/// How many bands the device has. Every model FiiO's app drives over HID answers this; a
+/// silent or implausible answer falls back to ten, the count FiiO's own app starts from.
+pub fn read_band_count<T: TransportFiio + ?Sized>(dev: &T) -> usize {
+    request(dev, CMD_BAND_COUNT, &[], |p| !p.is_empty())
+        .map(|p| p[0] as usize)
+        .filter(|n| (1..=31).contains(n))
+        .unwrap_or(10)
+}
+
 /// The active bank's global gain, which is what the app calls preamp. It is stored per bank.
 pub fn read_gain<T: TransportFiio + ?Sized>(dev: &T) -> Option<f64> {
     request(dev, CMD_GLOBAL_GAIN, &[], |p| p.len() >= 2).map(|p| s16(p[0], p[1]) as f64 / 10.0)
@@ -299,7 +421,7 @@ pub fn read_bank<T: TransportFiio + ?Sized>(dev: &T, p: &Profile) -> Result<Vec<
                 band: (i + 1) as u8,
                 freq: freq as i32,
                 gain,
-                q,
+                q: q_heard(p, q, gain, type_name(typ)),
                 typ: type_name(typ).to_string(),
             },
             None => Band { ok: false, band: (i + 1) as u8, freq: 0, gain: 0.0, q: 0.0, typ: "PK".into() },
@@ -327,6 +449,31 @@ pub fn set_preset<T: TransportFiio + ?Sized>(dev: &T, p: &Profile, slot: u8) -> 
         sleep(Duration::from_millis(DELAY_SETTLE_MS));
     }
     Ok(now.map(|s| s as i32))
+}
+
+// devicePEQ measured, on a QX13 and a KA17, that a FiiO peaking band realises Q / A, where A is
+// the RBJ amplitude 10^(|gain|/40): Q_mult x A came out at 1.001 +/- 0.015 over 17 cases from
+// +/-6 to +/-24 dB. Models flagged with `q_gain_law` are sent Q x A so they land on the Q asked
+// for, and read back as stored / A. The BTR17 and KA15 are not flagged: nobody has measured
+// them, and an unmeasured correction is worse than none.
+fn rbj_a(gain: f64) -> f64 {
+    10f64.powf(gain.abs() / 40.0)
+}
+
+fn q_to_send(p: &Profile, b: &BandIn) -> f64 {
+    if p.q_gain_law && b.typ == "PK" {
+        (b.q * rbj_a(b.gain)).clamp(p.q_min, p.q_max)
+    } else {
+        b.q
+    }
+}
+
+fn q_heard(p: &Profile, q: f64, gain: f64, typ: &str) -> f64 {
+    if p.q_gain_law && typ == "PK" {
+        q / rbj_a(gain)
+    } else {
+        q
+    }
 }
 
 fn band_payload(i: u8, b: &BandIn) -> [u8; 8] {
@@ -372,19 +519,33 @@ pub fn write_bank<T: TransportFiio + ?Sized>(
         ));
     }
 
-    let bands: Vec<&BandIn> = bands.iter().take(p.bands).collect();
+    // What goes on the wire, after any Q correction; the read-back is checked against this.
+    let bands: Vec<BandIn> = bands
+        .iter()
+        .take(p.bands)
+        .map(|b| BandIn { freq: b.freq, gain: b.gain, q: q_to_send(p, b), typ: b.typ.clone() })
+        .collect();
     for (i, b) in bands.iter().enumerate() {
         send_set(dev, CMD_BAND, &band_payload(i as u8, b));
-        sleep(Duration::from_millis(DELAY_BAND_MS));
+        sleep(Duration::from_millis(p.pace_ms));
     }
-    let gain = (preamp.clamp(p.gain_min, p.gain_max) * 10.0).round() as i16;
+    // Rounded down to the device's step, so a coarse device gets more headroom, never less.
+    let stepped = (preamp.clamp(p.gain_min, p.gain_max) / p.preamp_step + 1e-9).floor() * p.preamp_step;
+    let gain = (stepped * 10.0).round() as i16;
     send_set(dev, CMD_GLOBAL_GAIN, &gain.to_be_bytes());
-    sleep(Duration::from_millis(DELAY_BAND_MS));
+    sleep(Duration::from_millis(p.pace_ms));
     send_set(dev, CMD_SAVE, &[slot]);
     sleep(Duration::from_millis(DELAY_SAVE_MS));
 
-    // Reload the saved copy: away to a neighbouring USER bank and back.
-    let away = p.user_slots.iter().copied().find(|s| *s != slot).unwrap_or(slot);
+    // Reload the saved copy: away to a neighbouring USER bank and back — or, on a model with
+    // only one USER bank, to its first factory voicing.
+    let away = p
+        .user_slots
+        .iter()
+        .chain(p.presets.keys())
+        .copied()
+        .find(|s| *s != slot)
+        .unwrap_or(slot);
     let reload = |s: u8| set_preset(dev, p, s).ok().flatten() == Some(s as i32);
     if !(reload(away) && reload(slot)) {
         return Err(format!(
@@ -401,7 +562,13 @@ pub fn write_bank<T: TransportFiio + ?Sized>(
         .filter(|(got, want)| got.as_ref().is_some_and(|g| same_band(g, want)))
         .count() as u32;
     let gain_back = read_gain(dev);
-    if acked as usize == bands.len() && gain_back.map(|g| (g - gain as f64 / 10.0).abs() > 0.05).unwrap_or(true) {
+    let sent = gain as f64 / 10.0;
+    // A model nobody has checked may turn out to keep whole dB, as the KA15 does. That is not
+    // a failed write, just a coarser one.
+    let whole_db = |g: f64| !p.tested && g.fract() == 0.0 && (g - sent).abs() < 1.0;
+    if acked as usize == bands.len()
+        && gain_back.map(|g| (g - sent).abs() > 0.05 && !whole_db(g)).unwrap_or(true)
+    {
         return Err(format!(
             "The bands were saved, but the {}'s preamp reads back as {} instead of {:.1} dB.",
             p.name,

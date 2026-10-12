@@ -8,14 +8,25 @@ use std::sync::{Mutex, OnceLock};
 use crate::dsp;
 use crate::dsp2;
 use crate::dsp_fiio;
+use crate::dsp_fosi;
+use crate::dsp_kt;
 use crate::hid_fiio;
 use crate::hid_gen2;
+use crate::hid_report::{self, Via};
 
 pub use crate::dsp::{Band, BandIn, CableInfo, WriteResult};
 
 /// Vendor ids we look for. 0x35D8 is Moondrop (both generations); 0x3302 is CrinEar, whose
 /// cables are Walkplay-chipset parts speaking the same gen-2 protocol.
 pub const VIDS: [u16; 2] = [0x35D8, 0x3302];
+
+/// The other vendor ids Walkplay-chipset parts ship under, from devicePEQ's catalogue. Some are
+/// generic (C-Media's 0x0D8C is on every cheap USB sound card), so these only get the gen-2
+/// handshake when their descriptor declares report 0x4B both ways.
+const WALKPLAY_VIDS: [u16; 17] = [
+    0x0104, 0x011B, 0x011D, 0x0661, 0x0663, 0x0666, 0x0762, 0x0909, 0x0D8C, 0x2FC6, 0x34BE, 0x36A7,
+    0x373B, 0x60C1, 0x60E1, 0xB445, 0xB44D,
+];
 
 #[cfg(windows)]
 use crate::hid_win as backend;
@@ -98,6 +109,8 @@ enum Kind {
     Gen1,
     Gen2(dsp2::Profile),
     Fiio(dsp_fiio::Profile),
+    Kt(dsp_kt::Profile),
+    Fosi(dsp_fosi::Profile),
 }
 
 fn expected() -> Option<Expected> {
@@ -142,7 +155,7 @@ where
         return Err("this device does not speak the FiiO protocol".to_string());
     };
     on_hid_thread(move || {
-        let dev = hid_fiio::open(exp.vid, exp.pid).map_err(|e| {
+        let dev = hid_fiio::open(exp.vid, exp.pid, profile.report_id).map_err(|e| {
             format!("{} is no longer connected: {}. Nothing was written.", exp.name, e)
         })?;
         Ok(f(&dev, &profile))
@@ -150,15 +163,120 @@ where
 }
 
 /// A FiiO device we have a profile for and that answers the handshake (an active-bank read).
+/// The band count and the report it actually answered on are filled in from the device.
 fn probe_fiio(vid: u16, pid: u16, product: &str) -> Option<dsp_fiio::Profile> {
-    let profile = dsp_fiio::profile(vid, pid, product)?;
-    let dev = hid_fiio::open(vid, pid).ok()?;
+    let mut profile = dsp_fiio::profile(vid, pid, product)?;
+    let dev = hid_fiio::open(vid, pid, profile.report_id).ok()?;
     dsp_fiio::read_preset(&dev)?;
+    profile.report_id = dev.report_id();
+    profile.bands = dsp_fiio::read_band_count(&dev);
     Some(profile)
 }
 
+/// The KT Micro and Fosi counterparts of `on_fiio`.
+fn on_kt<T>(f: impl FnOnce(&hid_report::Dev, &dsp_kt::Profile) -> T + Send + 'static) -> Result<T, String>
+where
+    T: Send + 'static,
+{
+    let exp = expected().ok_or_else(|| "no cable is open".to_string())?;
+    let Kind::Kt(profile) = exp.kind.clone() else {
+        return Err("this device does not speak the KT Micro protocol".to_string());
+    };
+    on_hid_thread(move || {
+        let dev = hid_report::open(exp.vid, exp.pid, &[dsp_kt::REPORT_ID], Via::Interrupt)
+            .map_err(|e| format!("{} is no longer connected: {}. Nothing was written.", exp.name, e))?;
+        Ok(f(&dev, &profile))
+    })?
+}
+
+fn on_fosi<T>(f: impl FnOnce(&hid_report::Dev, &dsp_fosi::Profile) -> T + Send + 'static) -> Result<T, String>
+where
+    T: Send + 'static,
+{
+    let exp = expected().ok_or_else(|| "no cable is open".to_string())?;
+    let Kind::Fosi(profile) = exp.kind.clone() else {
+        return Err("this device does not speak the Fosi Audio protocol".to_string());
+    };
+    on_hid_thread(move || {
+        let dev = hid_report::open(exp.vid, exp.pid, &[dsp_fosi::REPORT_ID], Via::Feature)
+            .map_err(|e| format!("{} is no longer connected: {}. Nothing was written.", exp.name, e))?;
+        Ok(f(&dev, &profile))
+    })?
+}
+
+fn probe_kt(pid: u16, product: &str) -> Option<dsp_kt::Profile> {
+    let dev = hid_report::open(dsp_kt::VID, pid, &[dsp_kt::REPORT_ID], Via::Interrupt).ok()?;
+    dsp_kt::read_eq(&dev)?;
+    Some(dsp_kt::profile(pid, product))
+}
+
+fn probe_fosi(pid: u16, product: &str) -> Option<dsp_fosi::Profile> {
+    let p = dsp_fosi::profile(product)?;
+    let dev = hid_report::open(dsp_fosi::VID, pid, &[dsp_fosi::REPORT_ID], Via::Feature).ok()?;
+    dsp_fosi::read_enabled(&dev)?;
+    Some(p)
+}
+
+/// Whether a device on one of the long-tail Walkplay vendor ids declares report 0x4B both ways.
+fn declares_walkplay(vid: u16, pid: u16) -> bool {
+    hid_report::reports(vid, pid)
+        .map(|rs| rs.iter().any(|r| r.id == dsp2::REPORT_ID && r.input > 0 && r.output > 0))
+        .unwrap_or(false)
+}
+
 fn all_vids() -> Vec<u16> {
-    VIDS.iter().chain(dsp_fiio::VIDS.iter()).copied().collect()
+    VIDS.iter()
+        .chain(WALKPLAY_VIDS.iter())
+        .chain(dsp_fiio::VIDS.iter())
+        .chain([dsp_kt::VID, dsp_fosi::VID].iter())
+        .copied()
+        .collect()
+}
+
+/// What a candidate turned out to be, once asked.
+enum Probed {
+    Fiio(dsp_fiio::Profile),
+    Kt(dsp_kt::Profile),
+    Fosi(dsp_fosi::Profile),
+    Gen2(dsp2::Profile, String),
+    /// A Moondrop cable that didn't answer gen-2: the original report-0x01 protocol.
+    Gen1,
+    Nothing,
+}
+
+/// Settles a candidate's protocol by vendor id and then by asking it. FiiO, KT Micro and Fosi
+/// parts are told apart by vendor id and never sent the Walkplay handshake (the KA15 and KT
+/// Micro parts both carry a report 0x4B of their own).
+fn probe(vid: u16, pid: u16, product: &str) -> Probed {
+    if dsp_fiio::VIDS.contains(&vid) {
+        return probe_fiio(vid, pid, product).map_or(Probed::Nothing, Probed::Fiio);
+    }
+    if vid == dsp_kt::VID {
+        return probe_kt(pid, product).map_or(Probed::Nothing, Probed::Kt);
+    }
+    if vid == dsp_fosi::VID {
+        return probe_fosi(pid, product).map_or(Probed::Nothing, Probed::Fosi);
+    }
+    if WALKPLAY_VIDS.contains(&vid) && !declares_walkplay(vid, pid) {
+        return Probed::Nothing;
+    }
+    if let Ok(dev) = hid_gen2::open(vid, pid) {
+        if let Some(fw) = dsp2::read_version(&dev) {
+            let mut profile = dsp2::cable_profile(vid, pid, product);
+            // An uncharacterised cable tells us its editable slot rather than us guessing.
+            if profile.presets.is_empty() {
+                let slot = dsp2::read_slot(&dev).unwrap_or(0);
+                profile.custom_slot = slot;
+                profile.presets.insert(slot, "Custom EQ".to_string());
+            }
+            return Probed::Gen2(profile, fw);
+        }
+    }
+    if vid == dsp::MOONDROP_VID {
+        Probed::Gen1
+    } else {
+        Probed::Nothing
+    }
 }
 
 fn guard(dev: &backend::Dev) -> Result<(), String> {
@@ -197,22 +315,15 @@ pub fn list() -> Result<Vec<Listed>, String> {
     on_hid_thread(|| {
         let mut out = Vec::new();
         for (vid, pid, product) in hid_gen2::candidates(&all_vids())? {
-            if dsp_fiio::VIDS.contains(&vid) {
-                if let Some(p) = probe_fiio(vid, pid, &product) {
-                    out.push(Listed { vid: vid as u32, pid: pid as u32, name: p.name, gen: 3 });
-                }
-                continue;
-            }
-            let gen2 = hid_gen2::open(vid, pid)
-                .ok()
-                .and_then(|d| dsp2::read_version(&d));
-            if gen2.is_some() {
-                let p = dsp2::cable_profile(vid, pid, &product);
-                out.push(Listed { vid: vid as u32, pid: pid as u32, name: p.name, gen: 2 });
-            } else if vid == dsp::MOONDROP_VID {
-                let (name, _, _) = dsp::cable_profile(pid, &product);
-                out.push(Listed { vid: vid as u32, pid: pid as u32, name, gen: 1 });
-            }
+            let (name, gen) = match probe(vid, pid, &product) {
+                Probed::Fiio(p) => (p.name, 3),
+                Probed::Kt(p) => (p.name, 4),
+                Probed::Fosi(p) => (p.name, 5),
+                Probed::Gen2(p, _) => (p.name, 2),
+                Probed::Gen1 => (dsp::cable_profile(pid, &product).0, 1),
+                Probed::Nothing => continue,
+            };
+            out.push(Listed { vid: vid as u32, pid: pid as u32, name, gen });
         }
         Ok(out)
     })?
@@ -231,74 +342,108 @@ pub fn open(want: Option<(u16, u16)>) -> Result<CableInfo, String> {
             }
         }
 
-        // FiiO devices are told apart by vendor id, and never sent the gen-2 probe.
-        for (vid, pid, product) in candidates.iter().filter(|c| dsp_fiio::VIDS.contains(&c.0)) {
-            let Some(p) = probe_fiio(*vid, *pid, product) else {
-                continue;
-            };
-            *EXPECTED.lock().unwrap() = Some(Expected {
-                vid: *vid,
-                pid: *pid,
-                name: p.name.clone(),
-                kind: Kind::Fiio(p.clone()),
-            });
-            return Ok(CableInfo {
-                name: p.name.clone(),
-                vid: *vid as u32,
-                pid: *pid as u32,
-                has_presets: Some(true),
-                presets: p.presets.clone(),
-                gen: 3,
-                bands: p.bands,
-                gain_min: p.gain_min,
-                gain_max: p.gain_max,
-                q_min: p.q_min,
-                q_max: p.q_max,
-                types: p.types.clone(),
-                preamp: "global".into(),
-                firmware: None,
-            });
-        }
-        candidates.retain(|c| !dsp_fiio::VIDS.contains(&c.0));
-
-        // Gen-2 first: probe each candidate for the report-0x4B handshake.
+        // Anything that isn't a gen-1 Moondrop cable, first one that answers. Gen-1 comes last:
+        // a gen-1-only open would silently mis-drive the newer cables.
         for (vid, pid, product) in &candidates {
-            let dev = match hid_gen2::open(*vid, *pid) {
-                Ok(d) => d,
-                Err(_) => continue,
+            let (vid, pid) = (*vid, *pid);
+            let (info, kind) = match probe(vid, pid, product) {
+                Probed::Fiio(p) => (
+                    CableInfo {
+                        name: p.name.clone(),
+                        vid: vid as u32,
+                        pid: pid as u32,
+                        has_presets: Some(true),
+                        presets: p.presets.clone(),
+                        gen: 3,
+                        bands: p.bands,
+                        gain_min: p.gain_min,
+                        gain_max: p.gain_max,
+                        q_min: p.q_min,
+                        q_max: p.q_max,
+                        types: p.types.clone(),
+                        preamp: "global".into(),
+                        firmware: None,
+                        user_slots: p.user_slots.clone(),
+                        family: "FiiO".into(),
+                        tested: p.tested,
+                        preamp_step: p.preamp_step,
+                    },
+                    Kind::Fiio(p),
+                ),
+                Probed::Kt(p) => (
+                    CableInfo {
+                        name: p.name.clone(),
+                        vid: vid as u32,
+                        pid: pid as u32,
+                        has_presets: Some(false),
+                        presets: [(3u8, "Custom EQ".to_string())].into_iter().collect(),
+                        gen: 4,
+                        bands: p.bands,
+                        gain_min: p.gain_min,
+                        gain_max: p.gain_max,
+                        q_min: p.q_min,
+                        q_max: p.q_max,
+                        types: p.types.clone(),
+                        preamp: p.preamp.clone(),
+                        firmware: None,
+                        user_slots: Vec::new(),
+                        family: "KT Micro".into(),
+                        tested: false,
+                        preamp_step: 1.0,
+                    },
+                    Kind::Kt(p),
+                ),
+                Probed::Fosi(p) => (
+                    CableInfo {
+                        name: p.name.clone(),
+                        vid: vid as u32,
+                        pid: pid as u32,
+                        has_presets: Some(true),
+                        presets: p.presets.clone(),
+                        gen: 5,
+                        bands: p.bands,
+                        gain_min: p.gain_min,
+                        gain_max: p.gain_max,
+                        q_min: p.q_min,
+                        q_max: p.q_max,
+                        types: p.types.clone(),
+                        preamp: "none".into(),
+                        firmware: None,
+                        user_slots: p.user_slots.clone(),
+                        family: "Fosi Audio".into(),
+                        tested: false,
+                        preamp_step: 0.1,
+                    },
+                    Kind::Fosi(p),
+                ),
+                Probed::Gen2(profile, firmware) => (
+                    CableInfo {
+                        name: profile.name.clone(),
+                        vid: vid as u32,
+                        pid: pid as u32,
+                        has_presets: Some(profile.presets.len() > 1),
+                        presets: profile.presets.clone(),
+                        gen: 2,
+                        bands: profile.bands,
+                        gain_min: profile.gain_min,
+                        gain_max: profile.gain_max,
+                        q_min: profile.q_min,
+                        q_max: profile.q_max,
+                        types: profile.types.clone(),
+                        preamp: profile.preamp.clone(),
+                        firmware: Some(firmware),
+                        user_slots: Vec::new(),
+                        family: profile.family.clone(),
+                        tested: profile.tested,
+                        // GLOBAL_GAIN holds whole dB; PRE_GAIN 1/256 dB, offered in tenths.
+                        preamp_step: if profile.preamp == "global" { 1.0 } else { 0.1 },
+                    },
+                    Kind::Gen2(profile),
+                ),
+                Probed::Gen1 | Probed::Nothing => continue,
             };
-            let Some(firmware) = dsp2::read_version(&dev) else {
-                continue;
-            };
-            let mut profile = dsp2::cable_profile(*vid, *pid, product);
-            // An uncharacterised cable tells us its editable slot rather than us guessing.
-            if profile.presets.is_empty() {
-                let slot = dsp2::read_slot(&dev).unwrap_or(0);
-                profile.custom_slot = slot;
-                profile.presets.insert(slot, "Custom EQ".to_string());
-            }
-            *EXPECTED.lock().unwrap() = Some(Expected {
-                vid: *vid,
-                pid: *pid,
-                name: profile.name.clone(),
-                kind: Kind::Gen2(profile.clone()),
-            });
-            return Ok(CableInfo {
-                name: profile.name.clone(),
-                vid: *vid as u32,
-                pid: *pid as u32,
-                has_presets: Some(profile.presets.len() > 1),
-                presets: profile.presets.clone(),
-                gen: 2,
-                bands: profile.bands,
-                gain_min: profile.gain_min,
-                gain_max: profile.gain_max,
-                q_min: profile.q_min,
-                q_max: profile.q_max,
-                types: profile.types.clone(),
-                preamp: profile.preamp.clone(),
-                firmware: Some(firmware),
-            });
+            *EXPECTED.lock().unwrap() = Some(Expected { vid, pid, name: info.name.clone(), kind });
+            return Ok(info);
         }
 
         // Gen-1: the original report-0x01 cables, Moondrop only.
@@ -327,8 +472,60 @@ pub fn open(want: Option<(u16, u16)>) -> Result<CableInfo, String> {
             types,
             preamp: "baked".into(),
             firmware: None,
+            user_slots: Vec::new(),
+            family: "Moondrop".into(),
+            tested: true,
+            preamp_step: 0.1,
         })
     })?
+}
+
+/// A device that holds several writable banks, described for designing offline.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BankTarget {
+    pub name: String,
+    pub family: String,
+    pub bands: usize,
+    pub gain_min: f64,
+    pub gain_max: f64,
+    pub q_min: f64,
+    pub q_max: f64,
+    pub types: Vec<String>,
+    pub presets: std::collections::BTreeMap<u8, String>,
+    pub user_slots: Vec<u8>,
+    pub tested: bool,
+}
+
+/// Every bank-holding model the app knows, whether or not one is attached.
+pub fn bank_targets() -> Vec<BankTarget> {
+    let fiio = dsp_fiio::all_profiles().into_iter().map(|p| BankTarget {
+        name: p.model,
+        family: "FiiO".into(),
+        bands: p.bands,
+        gain_min: p.gain_min,
+        gain_max: p.gain_max,
+        q_min: p.q_min,
+        q_max: p.q_max,
+        types: p.types,
+        presets: p.presets,
+        user_slots: p.user_slots,
+        tested: p.tested,
+    });
+    let fosi = dsp_fosi::all_profiles().into_iter().map(|p| BankTarget {
+        name: p.name,
+        family: "Fosi Audio".into(),
+        bands: p.bands,
+        gain_min: p.gain_min,
+        gain_max: p.gain_max,
+        q_min: p.q_min,
+        q_max: p.q_max,
+        types: p.types,
+        presets: p.presets,
+        user_slots: p.user_slots,
+        tested: false,
+    });
+    fiio.chain(fosi).collect()
 }
 
 pub fn close() {
@@ -348,6 +545,11 @@ fn is_fiio() -> bool {
 }
 
 pub fn read_mode() -> Result<Option<i32>, String> {
+    match kind() {
+        Kind::Kt(_) => return on_kt(|dev, _| dsp_kt::read_eq(dev).map(|s| s as i32)),
+        Kind::Fosi(_) => return Ok(Some(dsp_fosi::active() as i32)),
+        _ => {}
+    }
     if is_fiio() {
         return on_fiio(|dev, _| dsp_fiio::read_preset(dev).map(|s| s as i32));
     }
@@ -361,6 +563,11 @@ pub fn read_mode() -> Result<Option<i32>, String> {
 }
 
 pub fn read_bank() -> Result<Vec<Band>, String> {
+    match kind() {
+        Kind::Kt(_) => return on_kt(|dev, p| dsp_kt::read_bank(dev, p)),
+        Kind::Fosi(_) => return on_fosi(|dev, p| dsp_fosi::read_bank(dev, p)),
+        _ => {}
+    }
     if is_fiio() {
         return on_fiio(|dev, p| dsp_fiio::read_bank(dev, p))?;
     }
@@ -374,6 +581,15 @@ pub fn read_bank() -> Result<Vec<Band>, String> {
 }
 
 pub fn set_preset(idx: i32) -> Result<Option<i32>, String> {
+    match kind() {
+        // One editable EQ and nothing to switch to.
+        Kind::Kt(_) => return on_kt(|dev, _| Ok(dsp_kt::read_eq(dev).map(|s| s as i32)))?,
+        Kind::Fosi(_) => {
+            let slot = u8::try_from(idx).map_err(|_| format!("there is no bank {}", idx))?;
+            return on_fosi(move |dev, p| dsp_fosi::set_preset(dev, p, slot))?;
+        }
+        _ => {}
+    }
     if is_fiio() {
         let slot = u8::try_from(idx).map_err(|_| format!("there is no bank {}", idx))?;
         return on_fiio(move |dev, p| dsp_fiio::set_preset(dev, p, slot))?;
@@ -389,6 +605,11 @@ pub fn set_preset(idx: i32) -> Result<Option<i32>, String> {
 }
 
 pub fn write_bank(bands: Vec<BandIn>, preamp: f64) -> Result<WriteResult, String> {
+    match kind() {
+        Kind::Kt(_) => return on_kt(move |dev, p| dsp_kt::write_bank(dev, p, &bands, preamp))?,
+        Kind::Fosi(_) => return on_fosi(move |dev, p| dsp_fosi::write_bank(dev, p, &bands))?,
+        _ => {}
+    }
     if is_fiio() {
         return on_fiio(move |dev, p| dsp_fiio::write_bank(dev, p, &bands, preamp))?;
     }
@@ -406,6 +627,11 @@ pub fn write_bank(bands: Vec<BandIn>, preamp: f64) -> Result<WriteResult, String
 /// into a band's coefficients, so there is no register to read it back from. On FiiO it is
 /// the active bank's global gain, which is stored per bank.
 pub fn read_preamp() -> Result<Option<f64>, String> {
+    match kind() {
+        Kind::Kt(_) => return on_kt(|dev, p| dsp_kt::read_preamp(dev, p)),
+        Kind::Fosi(_) => return Ok(None),
+        _ => {}
+    }
     if is_fiio() {
         return on_fiio(|dev, _| dsp_fiio::read_gain(dev));
     }
@@ -529,7 +755,7 @@ mod tests {
     // back), since a plain read returns the working copy even for bands that never reached flash.
     //   cargo test --lib -- --ignored --nocapture fiio_round_trip
     #[test]
-    #[ignore = "needs a FiiO BTR17 attached; writes and restores a flat USER bank"]
+    #[ignore = "needs a FiiO device attached; writes and restores a USER bank"]
     fn fiio_round_trip() {
         let found = list().expect("list failed");
         let d = found.iter().find(|d| d.gen == 3).expect("no FiiO device attached");
@@ -537,27 +763,30 @@ mod tests {
 
         let start = read_mode().expect("read_mode failed").expect("no active bank");
         println!("{} · {} bands · on {:?}", info.name, info.bands, info.presets.get(&(start as u8)));
-        let users: Vec<i32> = (160..=169).collect();
-        let mut scratch = None;
-        let mut before = Vec::new();
-        let mut pre_before = 0.0;
+        let users: Vec<i32> = info.user_slots.iter().map(|s| *s as i32).collect();
+        // A flat USER bank if there is one; otherwise the last USER bank that isn't the one the
+        // device started on, whose exact contents go back afterwards.
+        let mut banks = Vec::new();
         for s in &users {
             assert_eq!(set_preset(*s).expect("switch failed"), Some(*s));
             let b = read_bank().expect("read failed");
             let pre = read_preamp().expect("preamp read failed").expect("no preamp");
-            if b.iter().all(|x| x.ok && x.gain == 0.0) && pre == 0.0 {
-                scratch = Some(*s);
-                before = b;
-                pre_before = pre;
-                break;
-            }
+            println!("  {:?}: {} active bands, preamp {:.1}", info.presets.get(&(*s as u8)),
+                     b.iter().filter(|x| x.gain != 0.0).count(), pre);
+            assert!(b.iter().all(|x| x.ok), "every band should read");
+            banks.push((*s, b, pre));
         }
-        let Some(scratch) = scratch else {
+        let pick = banks
+            .iter()
+            .position(|(_, b, pre)| b.iter().all(|x| x.gain == 0.0) && *pre == 0.0)
+            .or_else(|| banks.iter().rposition(|(s, _, _)| *s != start));
+        let Some(k) = pick else {
             set_preset(start).ok();
-            panic!("no flat USER bank to use as a scratch bank");
+            panic!("no USER bank to use as a scratch bank");
         };
+        let (scratch, before, pre_before) = banks.swap_remove(k);
         println!("scratch bank: {:?}", info.presets.get(&(scratch as u8)));
-        let away = if scratch == 160 { 161 } else { 160 };
+        let away = *users.iter().find(|s| **s != scratch).expect("needs two USER banks");
 
         let probe: Vec<BandIn> = (0..info.bands)
             .map(|i| BandIn {
@@ -593,15 +822,17 @@ mod tests {
         let back = back.unwrap();
         assert_eq!((back[0].freq, back[0].gain), (100, -3.5));
         assert_eq!((back[9].freq, back[9].typ.as_str()), (1000, "HSQ"));
-        assert_eq!(pre_back.unwrap(), Some(-4.2));
+        // Rounded down to the device's step: -4.2 stays -4.2, or goes to -5 on a whole-dB part.
+        let want_pre = ((-4.2 / info.preamp_step + 1e-9).floor() * info.preamp_step * 10.0).round() / 10.0;
+        assert_eq!(pre_back.unwrap(), Some(want_pre));
         assert_eq!(r.expect("restore failed").acked as usize, info.bands);
-        assert!(flat_again.unwrap().iter().zip(&before).all(|(a, b)| a.freq == b.freq && a.gain == b.gain));
+        assert!(flat_again.unwrap().iter().zip(&before).all(|(a, b)| a.freq == b.freq && a.gain == b.gain && a.typ == b.typ));
         assert_eq!(end.unwrap(), Some(start), "should be back on the starting bank");
     }
 
     // A factory voicing can't be written; the write must refuse rather than land on it.
     #[test]
-    #[ignore = "needs a FiiO BTR17 attached; switches bank and back, writes nothing"]
+    #[ignore = "needs a FiiO device attached; switches bank and back, writes nothing"]
     fn fiio_refuses_to_write_a_factory_bank() {
         let found = list().expect("list failed");
         let d = found.iter().find(|d| d.gen == 3).expect("no FiiO device attached");
