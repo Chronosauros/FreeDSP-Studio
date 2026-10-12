@@ -1150,7 +1150,7 @@ function importFR(kind, files){
     rdr.readAsText(file);
   });
 }
-function frRow(name, isCur){ const row=document.createElement('div'); row.className='saved'+(isCur?' fr-cur':''); row.innerHTML=`<span class="sname">${name}</span><span class="sdel" title="Delete">✕</span>`; return row; }
+function frRow(name, isCur){ const row=document.createElement('div'); row.className='saved'+(isCur?' fr-cur':''); row.innerHTML=`<span class="sname">${escHtml(name)}</span><span class="sdel" title="Delete">✕</span>`; return row; }
 function renderFrLists(){
   const mbox=$('measList');
   if(mbox){ mbox.innerHTML='';
@@ -2133,7 +2133,7 @@ function renderSaved(){
   names.forEach(n=>{
     const e=all[n]; const bnds=Array.isArray(e)?e:e.bands; const pre=Array.isArray(e)?0:(e.preamp||0);
     const row=document.createElement('div'); row.className='saved';
-    row.innerHTML=`<span class="sname">${n}</span>`+
+    row.innerHTML=`<span class="sname">${escHtml(n)}</span>`+
       `<span class="smeta">${nBands(bnds)} bands · ${pre.toFixed(1)}</span>`+
       `<span class="sdel" title="Delete">✕</span>`;
     row.onclick=()=>{ applyEq(bnds,pre,'saved EQ "'+n+'"'); closeModal(); };
@@ -2599,7 +2599,7 @@ async function detect(){
     found.forEach(d=>{
       const b=document.createElement('button');
       b.className='devicebtn';
-      b.innerHTML=`<span>${d.name}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · ${d.gen===3?'FiiO':'gen '+d.gen}</span>`;
+      b.innerHTML=`<span>${escHtml(d.name)}</span><span class="mono muted">${d.vid.toString(16)}:${d.pid.toString(16)} · ${d.gen===3?'FiiO':'gen '+d.gen}</span>`;
       b.onclick=()=>openCable(d);
       box.appendChild(b);
     });
