@@ -523,34 +523,41 @@ mod tests {
         }
     }
 
-    // End-to-end against an attached FiiO device, through the UI's entry points. Uses USER7
-    // as a scratch bank, and only if it is flat, then puts it back and returns to the bank the
-    // device started on — so it won't touch an EQ you care about.
+    // End-to-end against an attached FiiO device, through the UI's entry points. Uses the first
+    // flat USER bank as a scratch bank, puts it back and returns to the bank the device started
+    // on — so it won't touch an EQ you care about. Checks the *saved* copy (by switching away and
+    // back), since a plain read returns the working copy even for bands that never reached flash.
     //   cargo test --lib -- --ignored --nocapture fiio_round_trip
     #[test]
-    #[ignore = "needs a FiiO BTR17 attached; writes and restores its USER7 bank"]
+    #[ignore = "needs a FiiO BTR17 attached; writes and restores a flat USER bank"]
     fn fiio_round_trip() {
-        const SCRATCH: i32 = 166; // USER7 on a BTR17
         let found = list().expect("list failed");
         let d = found.iter().find(|d| d.gen == 3).expect("no FiiO device attached");
         let info = open(Some((d.vid as u16, d.pid as u16))).expect("open failed");
-        assert_eq!(info.presets.get(&(SCRATCH as u8)).map(String::as_str), Some("USER7"));
 
         let start = read_mode().expect("read_mode failed").expect("no active bank");
         println!("{} · {} bands · on {:?}", info.name, info.bands, info.presets.get(&(start as u8)));
-        let t = std::time::Instant::now();
-        assert_eq!(set_preset(SCRATCH).expect("switch failed"), Some(SCRATCH));
-        println!("switch + settle: {:?}", t.elapsed());
-
-        let t = std::time::Instant::now();
-        let before = read_bank().expect("read failed");
-        println!("read: {:?}", t.elapsed());
-        let pre_before = read_preamp().expect("preamp read failed").expect("no preamp");
-        assert!(before.iter().all(|b| b.ok));
-        if before.iter().any(|b| b.gain != 0.0) || pre_before != 0.0 {
-            set_preset(start).ok();
-            panic!("USER7 isn't flat, so it isn't safe to use as a scratch bank");
+        let users: Vec<i32> = (160..=169).collect();
+        let mut scratch = None;
+        let mut before = Vec::new();
+        let mut pre_before = 0.0;
+        for s in &users {
+            assert_eq!(set_preset(*s).expect("switch failed"), Some(*s));
+            let b = read_bank().expect("read failed");
+            let pre = read_preamp().expect("preamp read failed").expect("no preamp");
+            if b.iter().all(|x| x.ok && x.gain == 0.0) && pre == 0.0 {
+                scratch = Some(*s);
+                before = b;
+                pre_before = pre;
+                break;
+            }
         }
+        let Some(scratch) = scratch else {
+            set_preset(start).ok();
+            panic!("no flat USER bank to use as a scratch bank");
+        };
+        println!("scratch bank: {:?}", info.presets.get(&(scratch as u8)));
+        let away = if scratch == 160 { 161 } else { 160 };
 
         let probe: Vec<BandIn> = (0..info.bands)
             .map(|i| BandIn {
@@ -563,6 +570,9 @@ mod tests {
         let t = std::time::Instant::now();
         let w = write_bank(probe, -4.2);
         println!("write + verify: {:?} -> {:?}", t.elapsed(), w.as_ref().map(|w| w.acked));
+        // Independently of write_bank's own check: away and back reloads the saved copy.
+        set_preset(away).ok();
+        set_preset(scratch).ok();
         let back = read_bank();
         let pre_back = read_preamp();
 
@@ -579,7 +589,7 @@ mod tests {
 
         let w = w.expect("write failed");
         assert_eq!(w.acked as usize, info.bands, "every band should verify");
-        assert_eq!(w.active, Some(SCRATCH));
+        assert_eq!(w.active, Some(scratch));
         let back = back.unwrap();
         assert_eq!((back[0].freq, back[0].gain), (100, -3.5));
         assert_eq!((back[9].freq, back[9].typ.as_str()), (1000, "HSQ"));

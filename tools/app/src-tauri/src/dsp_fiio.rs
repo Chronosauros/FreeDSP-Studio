@@ -55,7 +55,11 @@ const SETTABLE: [u8; 4] = [CMD_BAND, CMD_PRESET, CMD_GLOBAL_GAIN, CMD_SAVE];
 
 // Timing, measured on a BTR17. Replies arrive in ~4 ms, so the timeout is generous headroom.
 const REPLY_TIMEOUT_MS: u64 = 250;
-const DELAY_BAND_MS: u64 = 20;
+// The BTR17 saves each band write to flash by itself, but a write that arrives less than about
+// 50 ms after the previous one only reaches the working copy: it plays, reads back fine, and is
+// gone at the next power-off. At 20 ms bands 5 and 9 were lost on every write; 50 ms and up lost
+// nothing in testing. 150 ms is three times that.
+const DELAY_BAND_MS: u64 = 150;
 const DELAY_SAVE_MS: u64 = 300;
 // After a bank switch the active-bank register updates within ~35 ms, but band reads keep
 // returning the *previous* bank's data for 0.35–0.7 s. FiiO's web app reads straight after
@@ -345,11 +349,14 @@ fn same_band(got: &RawBand, want: &BandIn) -> bool {
         && got.3 == p[7]
 }
 
-/// Writes the whole bank to the active USER bank, saves it, and reads it back.
+/// Writes the whole bank to the active USER bank, then checks what the device actually saved.
 ///
-/// Band writes are one-way, so `acked` is the number of bands the device is holding
-/// afterwards, as on gen-2. Edits on a BTR17 turned out to survive a restart even unsaved;
-/// the save is sent anyway, as FiiO's app does, in case that only holds for a clean shutdown.
+/// Band writes are one-way, so `acked` is the number of bands found afterwards — and found in
+/// the *saved* copy, not the working one. Reading straight after a write returns the working
+/// copy, which holds every band even when some never reached flash. Switching to another bank
+/// and back reloads the saved copy (it matched the power-on state exactly in testing), so that
+/// is what is read back. You hear the other bank for a moment. The save command is sent as
+/// FiiO's app does, though band writes save themselves when paced.
 pub fn write_bank<T: TransportFiio + ?Sized>(
     dev: &T,
     p: &Profile,
@@ -376,6 +383,17 @@ pub fn write_bank<T: TransportFiio + ?Sized>(
     send_set(dev, CMD_SAVE, &[slot]);
     sleep(Duration::from_millis(DELAY_SAVE_MS));
 
+    // Reload the saved copy: away to a neighbouring USER bank and back.
+    let away = p.user_slots.iter().copied().find(|s| *s != slot).unwrap_or(slot);
+    let reload = |s: u8| set_preset(dev, p, s).ok().flatten() == Some(s as i32);
+    if !(reload(away) && reload(slot)) {
+        return Err(format!(
+            "{} was written, but the {} didn't switch banks to confirm it was saved. Check it's still connected and on {}.",
+            p.presets.get(&slot).cloned().unwrap_or_default(),
+            p.name,
+            p.presets.get(&slot).cloned().unwrap_or_default()
+        ));
+    }
     let back = read_raw(dev, bands.len());
     let acked = back
         .iter()
@@ -385,7 +403,7 @@ pub fn write_bank<T: TransportFiio + ?Sized>(
     let gain_back = read_gain(dev);
     if acked as usize == bands.len() && gain_back.map(|g| (g - gain as f64 / 10.0).abs() > 0.05).unwrap_or(true) {
         return Err(format!(
-            "The bands were written, but the {}'s preamp reads back as {} instead of {:.1} dB.",
+            "The bands were saved, but the {}'s preamp reads back as {} instead of {:.1} dB.",
             p.name,
             gain_back.map(|g| format!("{:.1} dB", g)).unwrap_or_else(|| "nothing".into()),
             gain as f64 / 10.0
@@ -503,6 +521,99 @@ mod tests {
         assert!(!same_band(&(161, 1.1, 2.12, 0), &want(161.0, 1.2, 2.12)));
         assert!(!same_band(&(160, 1.2, 2.12, 0), &want(161.0, 1.2, 2.12)));
         assert!(!same_band(&(161, 1.2, 2.12, 2), &want(161.0, 1.2, 2.12)));
+    }
+
+    // A fake BTR17 that keeps a working and a saved copy per bank, the way the real one does:
+    // a band write reaches the saved copy only if it comes at least 50 ms after the previous
+    // one, reads return the working copy, and switching banks reloads the saved copy.
+    struct TwoCopies {
+        active: std::cell::Cell<u8>,
+        working: RefCell<std::collections::HashMap<u8, Vec<RawBand>>>,
+        saved: RefCell<std::collections::HashMap<u8, Vec<RawBand>>>,
+        gain: std::cell::Cell<i16>,
+        last_band: std::cell::Cell<Option<Instant>>,
+        queued: RefCell<VecDeque<Vec<u8>>>,
+        never_saves: Option<u8>,
+    }
+    impl TwoCopies {
+        fn new(never_saves: Option<u8>) -> Self {
+            let flat: Vec<RawBand> = (0..10).map(|i| (100 * (i + 1), 0.0, 0.71, 0)).collect();
+            let banks: std::collections::HashMap<u8, Vec<RawBand>> = (160..170).map(|s| (s, flat.clone())).collect();
+            TwoCopies {
+                active: std::cell::Cell::new(166),
+                working: RefCell::new(banks.clone()),
+                saved: RefCell::new(banks),
+                gain: std::cell::Cell::new(0),
+                last_band: std::cell::Cell::new(None),
+                queued: RefCell::new(VecDeque::new()),
+                never_saves,
+            }
+        }
+    }
+    impl TransportFiio for TwoCopies {
+        fn send(&self, f: &[u8]) -> bool {
+            let (get, cmd, p) = (f[0] == 0xBB, f[4], &f[6..6 + f[5] as usize]);
+            let a = self.active.get();
+            match (get, cmd) {
+                (true, CMD_PRESET) => self.queued.borrow_mut().push_back(Fake::reply(CMD_PRESET, &[a])),
+                (false, CMD_PRESET) => {
+                    self.active.set(p[0]);
+                    let s = self.saved.borrow()[&p[0]].clone();
+                    self.working.borrow_mut().insert(p[0], s);
+                }
+                (true, CMD_BAND) => {
+                    let (freq, gain, q, t) = self.working.borrow()[&a][p[0] as usize];
+                    let [gh, gl] = ((gain * 10.0).round() as i16).to_be_bytes();
+                    let [fh, fl] = freq.to_be_bytes();
+                    let [qh, ql] = ((q * 100.0).round() as u16).to_be_bytes();
+                    self.queued.borrow_mut().push_back(Fake::reply(CMD_BAND, &[p[0], gh, gl, fh, fl, qh, ql, t]));
+                }
+                (false, CMD_BAND) => {
+                    let b = (u16::from_be_bytes([p[3], p[4]]), s16(p[1], p[2]) as f64 / 10.0,
+                             u16::from_be_bytes([p[5], p[6]]) as f64 / 100.0, p[7]);
+                    self.working.borrow_mut().get_mut(&a).unwrap()[p[0] as usize] = b;
+                    let paced = self.last_band.get().map_or(true, |t| t.elapsed() >= Duration::from_millis(50));
+                    if paced && self.never_saves != Some(p[0]) {
+                        self.saved.borrow_mut().get_mut(&a).unwrap()[p[0] as usize] = b;
+                    }
+                    self.last_band.set(Some(Instant::now()));
+                }
+                (true, CMD_GLOBAL_GAIN) => {
+                    let [h, l] = self.gain.get().to_be_bytes();
+                    self.queued.borrow_mut().push_back(Fake::reply(CMD_GLOBAL_GAIN, &[h, l]));
+                }
+                (false, CMD_GLOBAL_GAIN) => self.gain.set(s16(p[0], p[1])),
+                _ => {}
+            }
+            true
+        }
+        fn recv(&self, _: u64) -> Option<Vec<u8>> { self.queued.borrow_mut().pop_front() }
+        fn drain(&self) {}
+    }
+
+    fn probe_bank() -> Vec<BandIn> {
+        (0..10).map(|i| BandIn { freq: 1000.0 + 111.0 * i as f64, gain: if i % 2 == 0 { -1.5 } else { 2.0 }, q: 1.2, typ: "PK".into() }).collect()
+    }
+
+    // The pacing is what gets every band into flash on the real device.
+    #[test]
+    fn paced_writes_reach_the_saved_copy() {
+        let p = profile(0x2972, 0x0088, "FIIO BTR17").unwrap();
+        let dev = TwoCopies::new(None);
+        let w = write_bank(&dev, &p, &probe_bank(), -2.0).unwrap();
+        assert_eq!(w.acked, 10);
+        assert_eq!(dev.active.get(), 166, "should end on the bank it wrote");
+        assert!(dev.saved.borrow()[&166].iter().zip(probe_bank()).all(|(s, w)| s.0 == w.freq as u16));
+    }
+
+    // A band that never reaches flash must be counted as not written, even though the working
+    // copy — what a plain read returns — has it. This is the 0.6.0 bug.
+    #[test]
+    fn a_band_missing_from_the_saved_copy_is_reported() {
+        let p = profile(0x2972, 0x0088, "FIIO BTR17").unwrap();
+        let dev = TwoCopies::new(Some(4));
+        let w = write_bank(&dev, &p, &probe_bank(), -2.0).unwrap();
+        assert_eq!(w.acked, 9);
     }
 
     #[test]
