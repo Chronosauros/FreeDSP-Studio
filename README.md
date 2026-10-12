@@ -139,6 +139,11 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.6.3
+- Auto-fit, "measurement only, up to a frequency": a sharp treble feature inside the range could pull every band onto itself, leaving the rest of the range uncorrected. Fitting a Xenns Top Pro to a Dusk up to 10 kHz used 5 of 10 bands and left the bass worse than no EQ. Bands no longer start on top of each other, and stacked bands that get merged are re-placed where error is left. On 39 measurement/target pairs fitted to 10 kHz, every one improved or stayed the same (average error 0.69 to 0.26 dB, bands used 5.7 to 9.9), and fits to 6 kHz and full range improved too
+- Checked against squig.link's and graph.hangout.audio's own Auto EQ on the same curves: up to 6 kHz the fit is now the most accurate of the three, and to 10 kHz it matches them. `tools/fitcheck/squig-compare.js` repeats that comparison
+- L/R averaging on drop averages amplitude, exactly as squig does
+
 ### 0.6.2
 - Dropping both channels of a measurement together (squig's "Name [1].txt" and "Name [2].txt", or L/R) now adds one curve averaged the way squig.link plots it, so an auto-fit made in the app matches what squig shows. A single channel dropped alone is still added, with a note that it isn't the average
 
