@@ -2042,6 +2042,21 @@ function toast(msg, warn){ const t=$('toast'); t.textContent=msg; t.classList.to
 let dropQueue=[], dropCur=null, dragDepth=0;
 function hasFiles(e){ return e.dataTransfer && [...(e.dataTransfer.types||[])].includes('Files'); }
 function frNameFrom(file){ return (file.name||'imported').replace(/\.[^.]+$/,'').replace(/\s*\[[^\]]*\]\s*$/,'').trim() || 'imported'; }
+// One channel of a stereo measurement, named the way squig downloads them ("Name [1].txt" /
+// "Name [2].txt") or the usual alternatives: L/R, (1)/(2), _L/-R, left/right. Returns the name
+// without the channel part, and which channel it was; null if the name has no channel suffix.
+function splitChannel(fileName){
+  const base=(fileName||'').replace(/\.[^.]+$/,'').trim();
+  const m=base.match(/^(.*?)\s*(?:[\[(]\s*(1|2|L|R|left|right)\s*[\])]|[\s_-]+(L|R|left|right))$/i);
+  if(!m || !m[1].trim()) return null;
+  const c=(m[2]||m[3]).toUpperCase();
+  return { base:m[1].trim(), ch: c==='1'||c==='L'||c==='LEFT' ? 'L' : 'R' };
+}
+// Squig plots the left/right average, in dB, so dropping both channels gives the same curve.
+// Averaged on the first file's frequency points.
+function averageFR(curves){
+  return curves[0].map(([f])=>[f, curves.reduce((s,c)=>s+interpFR(c,f),0)/curves.length]);
+}
 async function handleDrop(files){
   const list=Array.from(files||[]); if(!list.length) return;
   const read=(f)=>new Promise((res)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result||'')); r.onerror=()=>res(''); r.readAsText(f); });
@@ -2054,18 +2069,27 @@ async function handleDrop(files){
       if(!$('workspace') || $('workspace').classList.contains('hidden')){ bad.push(`${f.name} (connect a device or start offline first)`); continue; }
       eqDone=true; toast(`${f.name}: ${applyFilters(eq)}`); log(`dropped EQ ${f.name}`); continue;
     }
-    const pts=normalizeFR(parseFR(text));
-    if(pts.length>=4){ frs.push({ name:frNameFrom(f), file:f.name, points:pts }); continue; }
+    const pts=parseFR(text);
+    if(pts.length>=4){ frs.push({ file:f.name, split:splitChannel(f.name), points:pts }); continue; }
     bad.push(f.name);
   }
   if(bad.length) toast(`Not used: ${bad.join(', ')}. Expected squig / AutoEQ "Filter …" lines or freq/dB pairs.`, true);
-  dropQueue.push(...frs);
+  // Channels of the same measurement dropped together become one averaged curve.
+  const groups=new Map();
+  for(const c of frs){ const key=c.split ? 'ch:'+c.split.base.toLowerCase() : 'f:'+c.file; if(!groups.has(key)) groups.set(key,[]); groups.get(key).push(c); }
+  for(const g of groups.values()){
+    const name = g[0].split ? g[0].split.base : frNameFrom({name:g[0].file});
+    if(g.length>1) dropQueue.push({ name, file:g.map(c=>c.file).join(' + '), points:normalizeFR(averageFR(g.map(c=>c.points))), channels:g.length });
+    else dropQueue.push({ name, file:g[0].file, points:normalizeFR(g[0].points), single:g[0].split ? g[0].split.ch : null });
+  }
   if(!dropCur) nextDrop();
 }
 function nextDrop(){
   dropCur=dropQueue.shift()||null;
   if(!dropCur){ closeModal(); return; }
-  $('dropSub').textContent=`From ${dropCur.file}, ${dropCur.points.length} points.`+(dropQueue.length?` ${dropQueue.length} more after this.`:'');
+  const how = dropCur.channels ? `Average of ${dropCur.channels} channels (${dropCur.file}), as squig plots it.`
+            : `From ${dropCur.file}, ${dropCur.points.length} points.`+(dropCur.single ? ` One channel only; drop both together to get the average squig shows.` : '');
+  $('dropSub').textContent = how+(dropQueue.length?` ${dropQueue.length} more after this.`:'');
   $('dropName').value=dropCur.name;
   dropCur.rig='711'; dropCur.kind='meas'; syncDropForm();
   show('dropSkip', dropQueue.length>0); $('dropAdd').textContent = 'Add';
