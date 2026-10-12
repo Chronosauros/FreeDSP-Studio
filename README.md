@@ -139,6 +139,9 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.6.1
+- Fix: BTR17 writes could lose bands at the next power-off. The BTR17 saves each band to flash as it arrives, but skips any that arrive less than about 50 ms after the previous one, and 0.6.0 sent them 20 ms apart, so bands 5 and 9 of every write were kept only until the device was switched off. Bands are now sent 150 ms apart, and every write is checked against what the device actually saved, by switching to another bank and back (which reloads the saved copy), instead of against its working copy. You'll hear the other bank for a moment. **If you wrote banks with 0.6.0, write them again**: Write all will find the ones that no longer match
+
 ### 0.6.0
 - FiiO BTR17 support: read and write any of its ten USER banks, switch banks, and a per-bank preamp (its global gain). Bank switches wait for the device to settle, since for up to 0.7 s afterwards it still reports the previous bank's EQ, which is what makes FiiO's own web app show the wrong curve. The app also never sends the command FiiO's code calls factory reset, which another tool sends as "save" on this device
 - Bank sets: name, order, sort, read all and write all for the BTR17's banks, with an automatic copy of whatever a write overwrote
