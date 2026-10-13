@@ -198,7 +198,7 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
-### Unreleased
+### 0.7.1
 - Linux build, untested with a real cable: .deb, .rpm and AppImage, with a udev rule so the app can open the cable without root
 
 ### 0.7.0
