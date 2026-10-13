@@ -1,6 +1,6 @@
 // HID transport for everything that isn't Windows, via hidapi.
 //
-// macOS today, Linux (hidraw) with the same code path once a udev rule is in place.
+// macOS, and Linux (hidraw) with the same code path once the udev rule is in place.
 // The two calls that matter map cleanly onto the Win32 ones this app was built around:
 //
 //   HidD_SetOutputReport  ->  hid_send_output_report  (SET_REPORT over the control pipe)
@@ -67,8 +67,11 @@ fn permission_hint() -> &'static str {
 
 #[cfg(not(target_os = "macos"))]
 fn permission_hint() -> &'static str {
-    "\n\nIf the cable is plugged in, you may not have permission to open the hidraw device. \
-     A udev rule granting access to VID 35d8 is needed."
+    // hidraw nodes are root-only by default. The .deb installs 70-freedsp-studio.rules to
+    // grant the logged-in user access; the AppImage can't, so the user copies it in by hand.
+    "\n\nIf the cable is plugged in, Linux is most likely blocking access to its hidraw \
+     device. Install the udev rule (70-freedsp-studio.rules, see the README), then unplug \
+     and replug the cable."
 }
 
 // The hidapi context this uses lives in hid_api, shared with the gen-2 transport — see the

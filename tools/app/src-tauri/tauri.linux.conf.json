@@ -1,0 +1,26 @@
+{
+  "mainBinaryName": "freedsp-studio",
+  "bundle": {
+    "targets": [
+      "deb",
+      "rpm",
+      "appimage"
+    ],
+    "category": "Music",
+    "shortDescription": "EQ editor for USB-C DSP cables and dongles",
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/lib/udev/rules.d/70-freedsp-studio.rules": "linux/70-freedsp-studio.rules"
+        },
+        "postInstallScript": "linux/postinst.sh"
+      },
+      "rpm": {
+        "files": {
+          "/usr/lib/udev/rules.d/70-freedsp-studio.rules": "linux/70-freedsp-studio.rules"
+        },
+        "postInstallScript": "linux/postinst.sh"
+      }
+    }
+  }
+}

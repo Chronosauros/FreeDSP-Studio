@@ -1,0 +1,43 @@
+# FreeDSP Studio: lets the logged-in user open the HID (hidraw) nodes of supported
+# DSP cables and dongles, without running the app as root.
+#
+# TAG+="uaccess" grants access to whoever is at the local seat (systemd-logind), so the
+# file must sort before 73-seat-late.rules. The .deb installs it to /usr/lib/udev/rules.d/;
+# for the AppImage, copy it to /etc/udev/rules.d/ and run
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# then replug the cable.
+#
+# Same vendor ids the app scans for (hid.rs). The Walkplay ones only get talked to when
+# their HID descriptor declares the Walkplay report; a generic part matched here only has
+# its descriptor read, never written to.
+
+# Moondrop
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="35d8", TAG+="uaccess"
+# Moondrop (Walkplay)
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", TAG+="uaccess"
+# FiiO
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2972", TAG+="uaccess"
+# FiiO (second vendor id)
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0a12", TAG+="uaccess"
+# KT Micro
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="31b2", TAG+="uaccess"
+# Fosi Audio DS3
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="152a", TAG+="uaccess"
+# Walkplay-chipset parts sold under other brands
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0104", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="011b", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="011d", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0661", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0663", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0666", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0762", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0909", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0d8c", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2fc6", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="34be", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="36a7", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="373b", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="60c1", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="60e1", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="b445", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="b44d", TAG+="uaccess"
