@@ -20,7 +20,8 @@ use std::fs;
 use tauri::Manager;
 
 // Saved EQs live as a plain JSON file in the per-OS app config dir (cross-platform:
-// %APPDATA%\<id>\ on Windows, ~/Library/Application Support/<id>/ on macOS).
+// %APPDATA%\<id>\ on Windows, ~/Library/Application Support/<id>/ on macOS,
+// ~/.config/<id>/ on Linux).
 fn saved_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;

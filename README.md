@@ -1,6 +1,6 @@
 # FreeDSP Studio
 
-An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, FiiO's dongles, amps and receivers (BTR17, KA15 and the rest of FiiO's HID range, plus JadeAudio and SnowSky), KT Micro-chipset IEMs and cables, and the Fosi Audio DS3. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS.
+An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, FiiO's dongles, amps and receivers (BTR17, KA15 and the rest of FiiO's HID range, plus JadeAudio and SnowSky), KT Micro-chipset IEMs and cables, and the Fosi Audio DS3. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS, with an untested Linux build.
 
 I made this because the stock app is clunky, locked to whole-dB steps, and it turns out the cable can do WAY more than the app lets on.
 
@@ -16,6 +16,8 @@ From the [latest release](https://github.com/EffectiveEquivalent/FreeDSP-Studio/
 |---|---|---|
 | **Windows** | `FreeDSP-Studio.exe` | Single portable exe, nothing to install |
 | **macOS** | `FreeDSP-Studio-macOS.dmg` | Universal, runs on Apple Silicon and Intel |
+| **Linux** | `FreeDSP-Studio-linux-amd64.deb` / `.rpm` | Debian/Ubuntu or Fedora. Untested with a real cable, see below |
+| | `FreeDSP-Studio-linux-amd64.AppImage` | Any distro. Much bigger (~80 MB) as it has to carry its own WebKitGTK |
 
 **Heads up: neither build is signed, so your OS will warn you about it.** Signing costs money per year on both platforms and this is a free project.
 
@@ -28,6 +30,17 @@ xattr -dr com.apple.quarantine "/Applications/FreeDSP Studio.app"
 ```
 
 Either way you only do it once. Or run from source (below), which avoids the whole thing.
+
+**Linux is untested.** It's built blind: the code path is the same hidapi one macOS uses, going through hidraw instead of IOKit, and the app starts fine, but nobody has run it against a cable yet. If you try it, please [open an issue](https://github.com/EffectiveEquivalent/FreeDSP-Studio/issues) saying what worked. It needs kernel 5.11 or newer.
+
+Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). For the AppImage, grab [`70-freedsp-studio.rules`](tools/app/src-tauri/linux/70-freedsp-studio.rules) and:
+
+```bash
+sudo cp 70-freedsp-studio.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+Then unplug and replug the cable.
 
 ## Supported cables
 
@@ -97,7 +110,7 @@ Bands are as the device reports them (10 on every model checked so far). FiiO de
 
 Plug in more than one and the app asks which to drive.
 
-Windows and macOS. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS goes through hidapi onto IOKit — so Linux is a small step from here: hidraw supports the same two calls and slots in beside the macOS backend. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs a udev rule granting access to the vendor ids above (`35d8`, `3302`, `2972`, `0a12`, `31b2`, `152a` and the Walkplay ones), and someone with a cable to test it.
+Windows, macOS and (untested) Linux. The gen-1 HID transport is split per platform — Windows goes at `hid.dll` directly, macOS and Linux go through hidapi, onto IOKit and hidraw respectively. hidraw supports the same two calls (`HIDIOCSOUTPUT` / `HIDIOCGINPUT`, kernel 5.11+), so Linux shares the macOS backend unchanged. Gen 2 needs neither, being plain interrupt reads and writes, so it already runs through hidapi on every platform. Linux needs the udev rule granting access to the vendor ids above (`35d8`, `3302`, `2972`, `0a12`, `31b2`, `152a` and the Walkplay ones), and someone with a cable to test it.
 
 ## What it does
 
@@ -136,10 +149,11 @@ One wrinkle worth recording: replies are tagged only with the command they answe
 
 ## Run from source
 
-You'll need [Node.js](https://nodejs.org/) and the [Rust toolchain](https://rustup.rs/), plus:
+You'll need [Node.js](https://nodejs.org/) and the [Rust toolchain](https://rustup.rs/). Node is only there to run the Tauri CLI at build time; nothing from it ships in the app. Plus:
 
 - **Windows** — the MSVC C++ build tools (Visual Studio or the standalone Build Tools). WebView2 is already on any normal Windows 11 install.
 - **macOS** — the Xcode Command Line Tools (`xcode-select --install`). WKWebView is part of the OS.
+- **Linux** — WebKitGTK and the usual build bits. On Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-dev libudev-dev librsvg2-dev build-essential`. You'll also need the udev rule above.
 
 ```bash
 git clone https://github.com/EffectiveEquivalent/FreeDSP-Studio.git
@@ -162,6 +176,12 @@ macOS, universal .app and .dmg into `tools/app/src-tauri/target/universal-apple-
 npx tauri build --target universal-apple-darwin --bundles app,dmg
 ```
 
+Linux, .deb, .rpm and AppImage into `tools/app/src-tauri/target/release/bundle/`:
+
+```bash
+npx tauri build
+```
+
 The macOS bundle is ad-hoc signed automatically (`signingIdentity: "-"` in `tauri.macos.conf.json`) — free, no Apple account, and required for the app to launch on Apple Silicon. It is not notarisation, so the Gatekeeper warning above still applies to anything downloaded. Running from source avoids both platforms' warnings entirely.
 
 ## Safety
@@ -177,6 +197,9 @@ This is a clean, independent implementation of the wire protocols, written for i
 If this saved you from the stock app, you can [buy me a coffee](https://buymeacoffee.com/effectiveequivalent). No pressure.
 
 ## Changelog
+
+### Unreleased
+- Linux build, untested with a real cable: .deb, .rpm and AppImage, with a udev rule so the app can open the cable without root
 
 ### 0.7.0
 - FiiO KA15: read and write its three USER banks, switch banks, preamp. Tested on hardware. It carries FiiO's report on the same Consumer collection as its media keys (next to a Walkplay report it doesn't use for its banks), 63 bytes rather than the BTR17's 32, and stores its preamp in whole dB

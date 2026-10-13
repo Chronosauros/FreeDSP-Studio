@@ -1,8 +1,8 @@
 name: Release
 
-# Build the portable Windows exe and the macOS dmg. Push a version tag (e.g. v0.1.0)
+# Build the portable Windows exe, the macOS dmg and the Linux deb/rpm/AppImage. Push a version tag (e.g. v0.1.0)
 # to cut a release; or run manually from the Actions tab to just get build artifacts.
-# Both jobs attach to the same release. Neither build is signed by a paid certificate:
+# All jobs attach to the same release. Neither the Windows nor the macOS build is signed by a paid certificate:
 # Windows shows a SmartScreen warning, macOS shows a Gatekeeper one.
 on:
   push:
@@ -100,3 +100,61 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: tools/app/FreeDSP-Studio-macOS.dmg
+
+  linux:
+    # 22.04 rather than latest: the binary links against the build machine's glibc, so the
+    # older the base, the more distros it runs on.
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: tools/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libudev-dev librsvg2-dev \
+            libayatana-appindicator3-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/app/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend tooling
+        run: npm ci
+
+      # Targets, the binary name and the udev rule come from tauri.linux.conf.json.
+      - name: Build deb, rpm and AppImage
+        run: npx tauri build
+
+      - name: Stage artifacts
+        run: |
+          b=src-tauri/target/release/bundle
+          cp $b/deb/*.deb FreeDSP-Studio-linux-amd64.deb
+          cp $b/rpm/*.rpm FreeDSP-Studio-linux-amd64.rpm
+          cp $b/appimage/*.AppImage FreeDSP-Studio-linux-amd64.AppImage
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeDSP-Studio-linux
+          path: |
+            tools/app/FreeDSP-Studio-linux-amd64.deb
+            tools/app/FreeDSP-Studio-linux-amd64.rpm
+            tools/app/FreeDSP-Studio-linux-amd64.AppImage
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            tools/app/FreeDSP-Studio-linux-amd64.deb
+            tools/app/FreeDSP-Studio-linux-amd64.rpm
+            tools/app/FreeDSP-Studio-linux-amd64.AppImage
