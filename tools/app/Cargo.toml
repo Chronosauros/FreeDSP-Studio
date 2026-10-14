@@ -1,6 +1,6 @@
 [package]
 name = "freedsp-studio"
-version = "0.8.0"
+version = "0.8.1"
 description = "EQ editor for USB-C DSP cables and dongles"
 build = "build.rs"
 authors = ["EffectiveEquivalent"]
