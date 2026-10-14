@@ -1,9 +1,9 @@
 name: Release
 
-# Build the portable Windows exe, the macOS dmg and the Linux deb and rpm. Push a version tag (e.g. v0.1.0)
-# to cut a release; or run manually from the Actions tab to just get build artifacts.
-# All jobs attach to the same release. Neither the Windows nor the macOS build is signed by a paid certificate:
-# Windows shows a SmartScreen warning, macOS shows a Gatekeeper one.
+# Builds the Windows exe, the macOS dmg and the Linux deb and rpm. Push a version tag (e.g.
+# v0.8.0) to cut a release, or run it from the Actions tab to just get build artifacts. All jobs
+# attach to the same release. Neither the Windows nor the macOS build is signed by a paid
+# certificate: Windows shows a SmartScreen warning, macOS a Gatekeeper one.
 on:
   push:
     tags: ['v*']
@@ -25,20 +25,16 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tools/app/src-tauri
+          workspaces: tools/app
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install frontend tooling
-        run: npm ci
+      - name: Test
+        run: cargo test --release --locked
 
       - name: Build portable exe
-        run: npx tauri build --no-bundle
+        run: cargo build --release --locked
 
       - name: Stage artifact
-        run: Copy-Item "src-tauri/target/release/app.exe" "FreeDSP-Studio.exe"
+        run: Copy-Item "target/release/freedsp-studio.exe" "FreeDSP-Studio.exe"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -67,27 +63,33 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tools/app/src-tauri
+          workspaces: tools/app
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Test
+        run: cargo test --release --locked
 
-      - name: Install frontend tooling
-        run: npm ci
-
-      # tauri.macos.conf.json sets signingIdentity "-", so the bundler ad-hoc signs the
-      # .app before it builds the dmg. That's free and needs no Apple account; it is what
-      # lets the app run at all on Apple Silicon. It is NOT notarisation.
-      - name: Build universal dmg
-        run: npx tauri build --target universal-apple-darwin --bundles app,dmg
-
-      - name: Stage artifact
+      - name: Build both architectures
         run: |
-          dmg=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
-          cp "$dmg" FreeDSP-Studio-macOS.dmg
-          codesign --verify --strict --verbose=2 \
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+
+      # The .app is put together by hand: a universal binary, the plist and the icon. Ad-hoc
+      # signing is free and needs no Apple account; it is what lets the app run at all on Apple
+      # Silicon. It is NOT notarisation.
+      - name: Bundle universal .app and dmg
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+          app="dist/FreeDSP Studio.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          lipo -create -output "$app/Contents/MacOS/freedsp-studio" \
+            target/aarch64-apple-darwin/release/freedsp-studio \
+            target/x86_64-apple-darwin/release/freedsp-studio
+          sed "s/VERSION/$version/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+          cp assets/icons/icon.icns "$app/Contents/Resources/icon.icns"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --strict --verbose=2 "$app"
+          ln -s /Applications dist/Applications
+          hdiutil create -volname "FreeDSP Studio" -srcfolder dist -ov -format UDZO FreeDSP-Studio-macOS.dmg
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -111,33 +113,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ALSA for the listening test's sound and libudev for hidraw. That is all it links;
+      # Wayland, X11 and OpenGL are loaded at run time.
       - name: Install system libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libudev-dev librsvg2-dev
+          sudo apt-get install -y libasound2-dev libudev-dev
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tools/app/src-tauri
+          workspaces: tools/app
 
-      - uses: actions/setup-node@v4
+      - uses: taiki-e/install-action@v2
         with:
-          node-version: 20
+          tool: cargo-deb,cargo-generate-rpm
 
-      - name: Install frontend tooling
-        run: npm ci
+      - name: Test
+        run: cargo test --release --locked
 
-      # Targets, the binary name and the udev rule come from tauri.linux.conf.json.
       - name: Build deb and rpm
-        run: npx tauri build
+        run: |
+          cargo deb --locked
+          cargo generate-rpm
 
       - name: Stage artifacts
         run: |
-          b=src-tauri/target/release/bundle
-          cp $b/deb/*.deb FreeDSP-Studio-linux-amd64.deb
-          cp $b/rpm/*.rpm FreeDSP-Studio-linux-amd64.rpm
+          cp target/debian/*.deb FreeDSP-Studio-linux-amd64.deb
+          cp target/generate-rpm/*.rpm FreeDSP-Studio-linux-amd64.rpm
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

@@ -1,6 +1,6 @@
 # FreeDSP Studio
 
-An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, FiiO's dongles, amps and receivers (BTR17, KA15 and the rest of FiiO's HID range, plus JadeAudio and SnowSky), KT Micro-chipset IEMs and cables, and the Fosi Audio DS3. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with Tauri, so it's a few MB of native app rather than a bundled browser. Runs on Windows and macOS, with an untested Linux build.
+An EQ editor for USB-C DSP cables and dongles — Moondrop's DUSK-SP, MAY and FreeDSP, the newer FreeDSP Mini, Walkplay-chipset devices sold under other brands such as the CrinEar Protocol Micro, FiiO's dongles, amps and receivers (BTR17, KA15 and the rest of FiiO's HID range, plus JadeAudio and SnowSky), KT Micro-chipset IEMs and cables, and the Fosi Audio DS3. It reads whatever EQ is on the cable, lets you edit the parametric bands by dragging points on the response curve, imports from squig.link, and writes it back. Built in Rust with [egui](https://github.com/emilk/egui): one native program that draws its own interface, with no browser engine and no GUI toolkit behind it. Runs on Windows, macOS and Linux (Linux not yet tested with a cable).
 
 I made this because the stock app is clunky, locked to whole-dB steps, and it turns out the cable can do WAY more than the app lets on.
 
@@ -30,9 +30,11 @@ xattr -dr com.apple.quarantine "/Applications/FreeDSP Studio.app"
 
 Either way you only do it once. Or run from source (below), which avoids the whole thing.
 
-**Linux is untested.** It's built blind: the code path is the same hidapi one macOS uses, going through hidraw instead of IOKit, and the app starts fine, but nobody has run it against a cable yet. If you try it, please [open an issue](https://github.com/EffectiveEquivalent/FreeDSP-Studio/issues) saying what worked. It needs kernel 5.11 or newer.
+**Linux is untested with a cable.** The device code is the same hidapi path macOS uses, going through hidraw instead of IOKit, and the app runs, but nobody has driven a cable with it yet. If you try it, please [open an issue](https://github.com/EffectiveEquivalent/FreeDSP-Studio/issues) saying what worked. It needs kernel 5.11 or newer.
 
-Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). Running from source, grab [`70-freedsp-studio.rules`](tools/app/src-tauri/linux/70-freedsp-studio.rules) and:
+On Linux the app links only libc, ALSA (for the listening test's sound) and libudev. Wayland or X11 and OpenGL are loaded when it starts, so it runs on any desktop, GNOME or not. File dialogs go through the XDG desktop portal (`xdg-desktop-portal`, which every mainstream desktop ships); dropping files on the window works without it.
+
+Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). Running from source, grab [`70-freedsp-studio.rules`](tools/app/packaging/linux/70-freedsp-studio.rules) and:
 
 ```bash
 sudo cp 70-freedsp-studio.rules /etc/udev/rules.d/
@@ -148,40 +150,37 @@ One wrinkle worth recording: replies are tagged only with the command they answe
 
 ## Run from source
 
-You'll need [Node.js](https://nodejs.org/) and the [Rust toolchain](https://rustup.rs/). Node is only there to run the Tauri CLI at build time; nothing from it ships in the app. Plus:
+You'll need the [Rust toolchain](https://rustup.rs/), plus:
 
-- **Windows** — the MSVC C++ build tools (Visual Studio or the standalone Build Tools). WebView2 is already on any normal Windows 11 install.
-- **macOS** — the Xcode Command Line Tools (`xcode-select --install`). WKWebView is part of the OS.
-- **Linux** — WebKitGTK and the usual build bits. On Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-dev libudev-dev librsvg2-dev build-essential`. You'll also need the udev rule above.
+- **Windows**: the MSVC C++ build tools (Visual Studio or the standalone Build Tools).
+- **macOS**: the Xcode Command Line Tools (`xcode-select --install`).
+- **Linux**: ALSA and libudev headers. On Debian/Ubuntu: `sudo apt install build-essential libasound2-dev libudev-dev`. You'll also need the udev rule above.
 
 ```bash
 git clone https://github.com/EffectiveEquivalent/FreeDSP-Studio.git
 cd FreeDSP-Studio/tools/app
-npm install
-npx tauri dev
+cargo run --release
 ```
+
+`cargo test` checks the EQ maths, auto-fit and listening-test maths against results recorded from the previous (HTML) version, in `tests/port.rs`.
 
 ## Build a release
 
-Windows, portable exe into `tools/app/src-tauri/target/release/`:
+Windows, the portable exe at `tools/app/target/release/freedsp-studio.exe`:
 
 ```bash
-npx tauri build --no-bundle
+cargo build --release
 ```
 
-macOS, universal .app and .dmg into `tools/app/src-tauri/target/universal-apple-darwin/release/bundle/`:
+Linux, a .deb and an .rpm (with the udev rule) into `tools/app/target/debian/` and `tools/app/target/generate-rpm/`:
 
 ```bash
-npx tauri build --target universal-apple-darwin --bundles app,dmg
+cargo install cargo-deb cargo-generate-rpm
+cargo deb
+cargo generate-rpm
 ```
 
-Linux, .deb and .rpm into `tools/app/src-tauri/target/release/bundle/`:
-
-```bash
-npx tauri build
-```
-
-The macOS bundle is ad-hoc signed automatically (`signingIdentity: "-"` in `tauri.macos.conf.json`) — free, no Apple account, and required for the app to launch on Apple Silicon. It is not notarisation, so the Gatekeeper warning above still applies to anything downloaded. Running from source avoids both platforms' warnings entirely.
+macOS: a universal .app (both architectures joined with `lipo`), ad-hoc signed and put in a dmg. The steps are in [`.github/workflows/release.yml`](.github/workflows/release.yml). Ad-hoc signing is free, needs no Apple account, and is what lets the app launch on Apple Silicon. It is not notarisation, so the Gatekeeper warning above still applies to anything downloaded. Running from source avoids both platforms' warnings entirely.
 
 ## Safety
 
@@ -197,9 +196,12 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
-### 0.7.2
-- Linux: the title bar can be dragged. WebKitGTK ignores the CSS drag region Windows uses, so Linux now uses Tauri's drag region as macOS does
-- Linux: no AppImage. Bundling its own GTK clashed with newer system libraries and it didn't start; use the .deb or .rpm
+### 0.8.0
+- **New native interface.** The app is now one Rust program drawn with egui, replacing Tauri and the system webview. No browser engine, no Node at build time, one process instead of three. On Linux it no longer needs WebKitGTK, GTK or anything from GNOME: it links libc, ALSA and libudev and nothing else. In testing it draws its window in about 0.2 s, where the webview version took about 1 s
+- Looks and works as before: the same screens, dialogs, keyboard shortcuts and listening test. Your saved EQs, curves, treble profiles and bank sets are the same files in the same folder, so they carry over. The theme and auto-fit settings lived in the webview's storage and now live in `settings.json` beside them, so they reset once
+- Auto-fit, the treble correction and the listening-test maths are ported from JavaScript to Rust, and tested against results recorded from the previous version
+- Linux: the title bar can be dragged and the window resized from its edges. The AppImage is gone; use the .deb or .rpm
+- About shows the IBM Plex font licence
 
 ### 0.7.1
 - Linux build, untested with a real cable: .deb, .rpm and AppImage, with a udev rule so the app can open the cable without root

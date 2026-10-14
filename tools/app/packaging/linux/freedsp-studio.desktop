@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=FreeDSP Studio
+Comment=EQ editor for USB-C DSP cables and dongles
+Exec=freedsp-studio
+Icon=freedsp-studio
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupWMClass=freedsp-studio
