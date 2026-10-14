@@ -1,16 +1,10 @@
-# Dependencies
-node_modules/
-
 # Build output
 dist/
 release/
 target/
 *.exe
 
-# Tauri generated bindings
-tools/app/src-tauri/gen/
-
-# Not published. The Tauri app (tools/app) is the release;
+# Not published. The native app (tools/app) is the release;
 # the Electron build and the CLI stay out of the repo.
 tools/desktop/
 tools/dusk-cli/
