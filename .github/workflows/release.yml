@@ -138,10 +138,18 @@ jobs:
           cargo deb --locked
           cargo generate-rpm
 
+      # The same binary in a tarball, for distros that take neither: the udev rule, a
+      # desktop entry and an install script beside it.
       - name: Stage artifacts
         run: |
           cp target/debian/*.deb FreeDSP-Studio-linux-amd64.deb
           cp target/generate-rpm/*.rpm FreeDSP-Studio-linux-amd64.rpm
+          d=FreeDSP-Studio-linux-x86_64
+          mkdir -p $d
+          cp target/release/freedsp-studio packaging/linux/70-freedsp-studio.rules packaging/linux/freedsp-studio.desktop $d/
+          cp assets/icons/128x128.png $d/freedsp-studio.png
+          cp packaging/linux/tarball/install.sh packaging/linux/tarball/README.txt $d/
+          tar -czf FreeDSP-Studio-linux-x86_64.tar.gz --owner=0 --group=0 $d
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -150,6 +158,7 @@ jobs:
           path: |
             tools/app/FreeDSP-Studio-linux-amd64.deb
             tools/app/FreeDSP-Studio-linux-amd64.rpm
+            tools/app/FreeDSP-Studio-linux-x86_64.tar.gz
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
@@ -158,3 +167,4 @@ jobs:
           files: |
             tools/app/FreeDSP-Studio-linux-amd64.deb
             tools/app/FreeDSP-Studio-linux-amd64.rpm
+            tools/app/FreeDSP-Studio-linux-x86_64.tar.gz
