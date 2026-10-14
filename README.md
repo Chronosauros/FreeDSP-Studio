@@ -98,7 +98,7 @@ Also known by name: Moondrop FreeDSP Pro, MOONRIVER 3, Rays, AG Rays, Marigold, 
 | FiiO FP3, OAK NANO | | 10 | −24 / +12 dB | PK / LS / HS | USER1 |
 | FiiO LS-TC2 | | 10 | ±12 dB | PK / LS / HS | USER1 |
 | FiiO FG3 | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 (music voicings only) |
-| RETRO NANO | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
+| RETRO NANO | yes | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
 | SNOWSKY Melody | | 10 | −24 / +12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
 | SNOWSKY TINY A, TINY B | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
 | JadeAudio JIEZI | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
@@ -199,6 +199,7 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ### 0.8.3
 - The TRN Black Pearl (`3302:43E8`, which calls itself "TE-C" over USB) shows by name. It was already driven as a 10-band Walkplay scheme 16 cable
+- The FiiO RETRO NANO is confirmed working on real hardware, so it no longer shows as untested
 
 ### 0.8.2
 - Linux: a .tar.gz with the binary, the udev rule, a desktop entry and an install script, for distros that take neither .deb nor .rpm

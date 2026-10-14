@@ -182,7 +182,7 @@ const MODELS: &[Model] = &[
     m("SNOWSKY Melody", WIDE, ALL, MUSIC, USER3, CLOSE, 7, 100),
     m("SNOWSKY TINY A", NARROW, ALL, MUSIC, USER3, CLOSE, 7, 100),
     m("SNOWSKY TINY B", NARROW, ALL, MUSIC, USER3, CLOSE, 7, 100),
-    m("RETRO NANO", NARROW, ALL, MUSIC_DAMP, USER3, Some((11, "Close EQ")), 7, 100),
+    Model { tested: true, ..m("RETRO NANO", NARROW, ALL, MUSIC_DAMP, USER3, Some((11, "Close EQ")), 7, 100) },
     // FiiO's app says report 7 for the JIEZI; devicePEQ found it on 2, like the JA11. The
     // descriptor decides between them.
     m("JadeAudio JIEZI", NARROW, ALL, MUSIC, USER3, CLOSE, 2, 100),
