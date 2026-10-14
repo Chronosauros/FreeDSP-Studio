@@ -17,6 +17,7 @@ From the [latest release](https://github.com/EffectiveEquivalent/FreeDSP-Studio/
 | **Windows** | `FreeDSP-Studio.exe` | Single portable exe, nothing to install |
 | **macOS** | `FreeDSP-Studio-macOS.dmg` | Universal, runs on Apple Silicon and Intel |
 | **Linux** | `FreeDSP-Studio-linux-amd64.deb` / `.rpm` | Debian/Ubuntu or Fedora. Untested with a real cable, see below |
+| | `FreeDSP-Studio-linux-x86_64.tar.gz` | Any other distro: run it from the folder, or `./install.sh` |
 
 **Heads up: neither build is signed, so your OS will warn you about it.** Signing costs money per year on both platforms and this is a free project.
 
@@ -34,7 +35,7 @@ Either way you only do it once. Or run from source (below), which avoids the who
 
 On Linux the app links only libc, ALSA (for the listening test's sound) and libudev. Wayland or X11 and OpenGL are loaded when it starts, so it runs on any desktop, GNOME or not. File dialogs go through the XDG desktop portal (`xdg-desktop-portal`, which every mainstream desktop ships); dropping files on the window works without it.
 
-Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). Running from source, grab [`70-freedsp-studio.rules`](tools/app/packaging/linux/70-freedsp-studio.rules) and:
+Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). Running from source or the tarball (its `install.sh` does this), grab [`70-freedsp-studio.rules`](tools/app/packaging/linux/70-freedsp-studio.rules) and:
 
 ```bash
 sudo cp 70-freedsp-studio.rules /etc/udev/rules.d/
@@ -195,6 +196,9 @@ This is a clean, independent implementation of the wire protocols, written for i
 If this saved you from the stock app, you can [buy me a coffee](https://buymeacoffee.com/effectiveequivalent). No pressure.
 
 ## Changelog
+
+### 0.8.2
+- Linux: a .tar.gz with the binary, the udev rule, a desktop entry and an install script, for distros that take neither .deb nor .rpm
 
 ### 0.8.1
 - Fix: Detect could do nothing on Windows. Release builds no longer abort on an internal error, so a device read that fails is handled as before instead of stopping the app
