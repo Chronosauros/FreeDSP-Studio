@@ -44,7 +44,6 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
-panic = "abort"
 
 # Linux packages, built in CI with cargo-deb and cargo-generate-rpm.
 [package.metadata.deb]

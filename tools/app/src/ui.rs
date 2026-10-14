@@ -91,6 +91,11 @@ fn header(app: &mut App, ui: &mut Ui) {
             }
             if app.connected {
                 top_links(app, ui);
+            } else {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                if link(ui, &p, "log", mono(11.0), p.ink2).on_hover_text("Diagnostics log").clicked() {
+                    app.open_modal(Modal::Log);
+                }
             }
         });
     });
@@ -235,6 +240,17 @@ fn connect(app: &mut App, ui: &mut Ui) {
             ui.add_space(2.0);
             para(ui, "Plug in your DSP cable, then click Detect. Nothing is changed until you Write.", sans(13.0), p.muted);
             ui.add_space(14.0);
+            if let Some(e) = app.connect_error.clone() {
+                theme::note(ui, &p, &e, true, false);
+                ui.add_space(6.0);
+            }
+            let slow = app.detect_started.map(|t| t.elapsed().as_secs() >= 10).unwrap_or(false);
+            if slow {
+                theme::note(ui, &p, "This is taking longer than it should. Open the log (top right) and send it over, it shows how far it got.", true, false);
+                ui.add_space(6.0);
+            } else if app.detect_started.is_some() {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+            }
             let list = app.device_list.clone();
             for d in &list {
                 let fam = match d.gen {
