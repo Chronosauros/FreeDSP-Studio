@@ -382,6 +382,7 @@
 <script>
   // Decided before first paint so the title bar never flashes the wrong window buttons.
   if (/Mac OS X/.test(navigator.userAgent)) document.documentElement.classList.add('is-mac');
+  else if (/Linux/.test(navigator.userAgent)) document.documentElement.classList.add('is-linux');
 </script>
 </head>
 <body>
@@ -744,7 +745,7 @@
 
   <div class="modal hidden" id="modalAbout">
     <div class="mhead">
-      <div><div class="mtitle">FreeDSP Studio</div><div class="msub">v0.7.1 · open-source EQ editor for USB-C DSP cables and dongles</div></div>
+      <div><div class="mtitle">FreeDSP Studio</div><div class="msub">v0.7.2 · open-source EQ editor for USB-C DSP cables and dongles</div></div>
       <button class="winbtn" data-close title="Close">✕</button>
     </div>
     <div style="font:12.5px/1.5 'IBM Plex Sans',sans-serif; color:var(--muted)">
@@ -2706,11 +2707,13 @@ window.addEventListener('DOMContentLoaded', ()=>{
   model = blankModel();
   // title strip
   // Windows drags the title bar via -webkit-app-region, which WebView2 honours and
-  // WKWebView ignores entirely, so macOS needs Tauri's drag region instead. Only macOS:
-  // on Windows a second mechanism would fight the native caption drag. "deep" because
-  // Tauri stops walking at the first element carrying the attribute, so a bare one here
-  // would refuse any click that landed on the logo or the status pill's inner spans.
-  if(document.documentElement.classList.contains('is-mac'))
+  // WebKit ignores entirely (WKWebView on macOS, WebKitGTK on Linux), so those two need
+  // Tauri's drag region instead. Not Windows: there a second mechanism would fight the
+  // native caption drag. "deep" because Tauri stops walking at the first element carrying
+  // the attribute, so a bare one here would refuse any click that landed on the logo or
+  // the status pill's inner spans.
+  const cl=document.documentElement.classList;
+  if(cl.contains('is-mac') || cl.contains('is-linux'))
     document.querySelector('.titlebar').setAttribute('data-tauri-drag-region','deep');
   $('minBtn').onclick=()=>window.win&&window.win.minimize();
   $('closeBtn').onclick=()=>window.win&&window.win.close();

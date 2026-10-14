@@ -17,7 +17,6 @@ From the [latest release](https://github.com/EffectiveEquivalent/FreeDSP-Studio/
 | **Windows** | `FreeDSP-Studio.exe` | Single portable exe, nothing to install |
 | **macOS** | `FreeDSP-Studio-macOS.dmg` | Universal, runs on Apple Silicon and Intel |
 | **Linux** | `FreeDSP-Studio-linux-amd64.deb` / `.rpm` | Debian/Ubuntu or Fedora. Untested with a real cable, see below |
-| | `FreeDSP-Studio-linux-amd64.AppImage` | Any distro. Much bigger (~80 MB) as it has to carry its own WebKitGTK |
 
 **Heads up: neither build is signed, so your OS will warn you about it.** Signing costs money per year on both platforms and this is a free project.
 
@@ -33,7 +32,7 @@ Either way you only do it once. Or run from source (below), which avoids the who
 
 **Linux is untested.** It's built blind: the code path is the same hidapi one macOS uses, going through hidraw instead of IOKit, and the app starts fine, but nobody has run it against a cable yet. If you try it, please [open an issue](https://github.com/EffectiveEquivalent/FreeDSP-Studio/issues) saying what worked. It needs kernel 5.11 or newer.
 
-Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). For the AppImage, grab [`70-freedsp-studio.rules`](tools/app/src-tauri/linux/70-freedsp-studio.rules) and:
+Linux won't let a normal user open a HID device without a udev rule. The `.deb` and `.rpm` install one for you (`/usr/lib/udev/rules.d/70-freedsp-studio.rules`). Running from source, grab [`70-freedsp-studio.rules`](tools/app/src-tauri/linux/70-freedsp-studio.rules) and:
 
 ```bash
 sudo cp 70-freedsp-studio.rules /etc/udev/rules.d/
@@ -176,7 +175,7 @@ macOS, universal .app and .dmg into `tools/app/src-tauri/target/universal-apple-
 npx tauri build --target universal-apple-darwin --bundles app,dmg
 ```
 
-Linux, .deb, .rpm and AppImage into `tools/app/src-tauri/target/release/bundle/`:
+Linux, .deb and .rpm into `tools/app/src-tauri/target/release/bundle/`:
 
 ```bash
 npx tauri build
@@ -197,6 +196,10 @@ This is a clean, independent implementation of the wire protocols, written for i
 If this saved you from the stock app, you can [buy me a coffee](https://buymeacoffee.com/effectiveequivalent). No pressure.
 
 ## Changelog
+
+### 0.7.2
+- Linux: the title bar can be dragged. WebKitGTK ignores the CSS drag region Windows uses, so Linux now uses Tauri's drag region as macOS does
+- Linux: no AppImage. Bundling its own GTK clashed with newer system libraries and it didn't start; use the .deb or .rpm
 
 ### 0.7.1
 - Linux build, untested with a real cable: .deb, .rpm and AppImage, with a udev rule so the app can open the cable without root

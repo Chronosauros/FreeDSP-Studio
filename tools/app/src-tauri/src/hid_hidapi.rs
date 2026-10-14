@@ -68,7 +68,7 @@ fn permission_hint() -> &'static str {
 #[cfg(not(target_os = "macos"))]
 fn permission_hint() -> &'static str {
     // hidraw nodes are root-only by default. The .deb installs 70-freedsp-studio.rules to
-    // grant the logged-in user access; the AppImage can't, so the user copies it in by hand.
+    // grant the logged-in user access; from source, the user copies it in by hand.
     "\n\nIf the cable is plugged in, Linux is most likely blocking access to its hidraw \
      device. Install the udev rule (70-freedsp-studio.rules, see the README), then unplug \
      and replug the cable."

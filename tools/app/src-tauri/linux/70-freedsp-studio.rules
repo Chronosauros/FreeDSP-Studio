@@ -3,7 +3,7 @@
 #
 # TAG+="uaccess" grants access to whoever is at the local seat (systemd-logind), so the
 # file must sort before 73-seat-late.rules. The .deb installs it to /usr/lib/udev/rules.d/;
-# for the AppImage, copy it to /etc/udev/rules.d/ and run
+# when running from source, copy it to /etc/udev/rules.d/ and run
 #   sudo udevadm control --reload-rules && sudo udevadm trigger
 # then replug the cable.
 #

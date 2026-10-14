@@ -3,8 +3,7 @@
   "bundle": {
     "targets": [
       "deb",
-      "rpm",
-      "appimage"
+      "rpm"
     ],
     "category": "Music",
     "shortDescription": "EQ editor for USB-C DSP cables and dongles",

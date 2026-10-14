@@ -1,6 +1,6 @@
 name: Release
 
-# Build the portable Windows exe, the macOS dmg and the Linux deb/rpm/AppImage. Push a version tag (e.g. v0.1.0)
+# Build the portable Windows exe, the macOS dmg and the Linux deb and rpm. Push a version tag (e.g. v0.1.0)
 # to cut a release; or run manually from the Actions tab to just get build artifacts.
 # All jobs attach to the same release. Neither the Windows nor the macOS build is signed by a paid certificate:
 # Windows shows a SmartScreen warning, macOS shows a Gatekeeper one.
@@ -114,8 +114,7 @@ jobs:
       - name: Install system libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libudev-dev librsvg2-dev \
-            libayatana-appindicator3-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libudev-dev librsvg2-dev
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -131,7 +130,7 @@ jobs:
         run: npm ci
 
       # Targets, the binary name and the udev rule come from tauri.linux.conf.json.
-      - name: Build deb, rpm and AppImage
+      - name: Build deb and rpm
         run: npx tauri build
 
       - name: Stage artifacts
@@ -139,7 +138,6 @@ jobs:
           b=src-tauri/target/release/bundle
           cp $b/deb/*.deb FreeDSP-Studio-linux-amd64.deb
           cp $b/rpm/*.rpm FreeDSP-Studio-linux-amd64.rpm
-          cp $b/appimage/*.AppImage FreeDSP-Studio-linux-amd64.AppImage
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -148,7 +146,6 @@ jobs:
           path: |
             tools/app/FreeDSP-Studio-linux-amd64.deb
             tools/app/FreeDSP-Studio-linux-amd64.rpm
-            tools/app/FreeDSP-Studio-linux-amd64.AppImage
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
@@ -157,4 +154,3 @@ jobs:
           files: |
             tools/app/FreeDSP-Studio-linux-amd64.deb
             tools/app/FreeDSP-Studio-linux-amd64.rpm
-            tools/app/FreeDSP-Studio-linux-amd64.AppImage
