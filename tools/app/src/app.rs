@@ -170,6 +170,10 @@ pub struct App {
     // connect screen
     pub connected: bool,
     pub connect_title: String,
+    /// What went wrong on the connect screen, shown under the title.
+    pub connect_error: Option<String>,
+    /// When the current detect started, so a stuck one can say so.
+    pub detect_started: Option<Instant>,
     pub device_list: Vec<hid::Listed>,
     pub off_target: String,
     pub off_bands: usize,
@@ -289,6 +293,8 @@ impl App {
             preamp_text: None,
             connected: false,
             connect_title: "Looking for a cable…".into(),
+            connect_error: None,
+            detect_started: None,
             device_list: Vec::new(),
             off_target,
             off_bands,
@@ -727,10 +733,17 @@ impl App {
     // ---- connect / offline ----
 
     pub fn detect(&mut self) {
+        self.log("looking for cables…");
+        self.connect_error = None;
+        self.detect_started = Some(Instant::now());
         self.worker.list();
     }
 
     pub fn open_cable(&mut self, d: Option<(u16, u16)>) {
+        if let Some((v, p)) = d {
+            self.log(format!("opening {:04x}:{:04x}…", v, p));
+        }
+        self.detect_started = Some(Instant::now());
         self.worker.open(d);
     }
 
@@ -1379,6 +1392,13 @@ impl App {
     fn on_reply(&mut self, r: Reply) {
         match r {
             Reply::Listed(Ok(found)) => {
+                self.detect_started = None;
+                self.log(format!(
+                    "found {} device(s){}{}",
+                    found.len(),
+                    if found.is_empty() { "" } else { ": " },
+                    found.iter().map(|d| format!("{} ({:04x}:{:04x}, gen {})", d.name, d.vid, d.pid, d.gen)).collect::<Vec<_>>().join(", ")
+                ));
                 self.device_list.clear();
                 if found.is_empty() {
                     self.connect_title = "No cable found, plug one in and click Detect".into();
@@ -1391,10 +1411,13 @@ impl App {
                 }
             }
             Reply::Listed(Err(e)) => {
+                self.detect_started = None;
                 self.log(format!("list failed: {}", e));
-                self.connect_title = "Error looking for cables, see log".into();
+                self.connect_title = "Error looking for cables".into();
+                self.connect_error = Some(e);
             }
             Reply::Opened(Ok(info)) => {
+                self.detect_started = None;
                 let (name, fam, gen, bands, gmin, gmax, tested) =
                     (info.name.clone(), info.family.clone(), info.gen, info.bands, info.gain_min, info.gain_max, info.tested);
                 self.render_cable(info);
@@ -1412,8 +1435,10 @@ impl App {
                 self.read_from_cable();
             }
             Reply::Opened(Err(e)) => {
+                self.detect_started = None;
                 self.log(format!("open failed: {}", e));
-                self.connect_title = "Error opening cable, see log".into();
+                self.connect_title = "Error opening cable".into();
+                self.connect_error = Some(e);
             }
             Reply::Mode(m) => {
                 self.active_bank = m;

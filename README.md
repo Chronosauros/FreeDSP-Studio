@@ -196,6 +196,10 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.8.1
+- Fix: Detect could do nothing on Windows. Release builds no longer abort on an internal error, so a device read that fails is handled as before instead of stopping the app
+- The connect screen has a log link, shows what Detect found or why it failed, and says so if detecting takes longer than 10 seconds
+
 ### 0.8.0
 - **New native interface.** The app is now one Rust program drawn with egui, replacing Tauri and the system webview. No browser engine, no Node at build time, one process instead of three. On Linux it no longer needs WebKitGTK, GTK or anything from GNOME: it links libc, ALSA and libudev and nothing else. In testing it draws its window in about 0.2 s, where the webview version took about 1 s
 - Looks and works as before: the same screens, dialogs, keyboard shortcuts and listening test. Your saved EQs, curves, treble profiles and bank sets are the same files in the same folder, so they carry over. The theme and auto-fit settings lived in the webview's storage and now live in `settings.json` beside them, so they reset once
