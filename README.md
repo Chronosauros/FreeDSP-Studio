@@ -197,6 +197,9 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 
 ## Changelog
 
+### 0.8.3
+- The TRN Black Pearl (`3302:43E8`, which calls itself "TE-C" over USB) shows by name. It was already driven as a 10-band Walkplay scheme 16 cable
+
 ### 0.8.2
 - Linux: a .tar.gz with the binary, the udev rule, a desktop entry and an install script, for distros that take neither .deb nor .rpm
 
