@@ -268,6 +268,26 @@ fn profile(vid: u16, pid: u16, product: &str) -> Profile {
             family: "Walkplay".into(),
             tested: true,
         },
+        // CrinEar Protocol Max, Walkplay scheme 16. 10 bands, +/-10 dB, peaking and both
+        // shelves on their native codes, with none of scheme 11's frequency or Q offset. Not
+        // tested here; Contour (github.com/Chronosauros/contour) has driven one on these limits.
+        // Its slot map is unconfirmed, so writes go to whatever slot the cable reports, and
+        // the Micro's -5 dB buffer isn't assumed.
+        (0x3302, 0x43CC) => Profile {
+            name: if product.is_empty() { "CrinEar Protocol Max".into() } else { name },
+            bands: 10,
+            gain_min: -10.0,
+            gain_max: 10.0,
+            q_min: 0.1,
+            q_max: 10.0,
+            types: types(SHELVES),
+            preamp: "global".into(),
+            preamp_buffer: 0.0,
+            presets: BTreeMap::new(),
+            custom_slot: 0,
+            family: "Walkplay (scheme 16)".into(),
+            tested: false,
+        },
         _ => {
             // Slot unknown, so the editable one is whatever the cable reports at open.
             let base = |bands, gmin, gmax, qmax, t: &[&str], pre: &str, family: &str| Profile {
@@ -763,5 +783,18 @@ mod tests {
         assert!(micro.types.contains(&"LP".to_string()));
         assert_eq!(mini.preamp, "pre");
         assert_eq!(micro.preamp, "global");
+    }
+
+    // The Max shares the Micro's vendor id but not its limits: ten bands, both shelves, no
+    // pass filters and no assumed preamp buffer, whatever product string it reports.
+    #[test]
+    fn protocol_max_has_its_own_profile() {
+        let max = profile(0x3302, 0x43CC, "");
+        assert_eq!(max.name, "CrinEar Protocol Max");
+        assert_eq!((max.bands, max.gain_min, max.gain_max), (10, -10.0, 10.0));
+        assert_eq!(max.types, ["PK", "LSQ", "HSQ"]);
+        assert_eq!((max.preamp.as_str(), max.preamp_buffer, max.custom_slot), ("global", 0.0, 0));
+        assert!(!max.tested);
+        assert_eq!(profile(0x3302, 0x43CC, "Protocol Max").name, "Protocol Max");
     }
 }
