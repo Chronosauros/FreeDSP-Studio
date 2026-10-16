@@ -633,7 +633,7 @@ pub fn read_preamp() -> Result<Option<f64>, String> {
         _ => {}
     }
     if is_fiio() {
-        return on_fiio(|dev, _| dsp_fiio::read_gain(dev));
+        return on_fiio(|dev, p| dsp_fiio::read_preamp(dev, p));
     }
     if is_gen2() {
         return on_gen2(|dev, p| dsp2::read_preamp(dev, p));
