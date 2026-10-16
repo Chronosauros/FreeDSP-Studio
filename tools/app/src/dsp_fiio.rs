@@ -119,6 +119,10 @@ pub struct Profile {
     /// The steps the device stores its global gain (the app's preamp) in. The KA15 keeps whole
     /// dB: -4.2 reads back as -4.0.
     pub preamp_step: f64,
+    /// What the device divides a shelf's stored Q by when it plays it (see `q_to_send`).
+    pub shelf_q_scale: f64,
+    /// dB the device plays its global gain below the stored value, on a USER bank.
+    pub preamp_offset: f64,
     /// Checked against real hardware in this app.
     pub tested: bool,
 }
@@ -137,6 +141,8 @@ struct Model {
     pace_ms: u64,
     q_gain_law: bool,
     preamp_step: f64,
+    shelf_q_scale: f64,
+    preamp_offset: f64,
     tested: bool,
 }
 
@@ -163,12 +169,16 @@ const CLOSE: Option<(u8, &str)> = Some((240, "Close EQ"));
 #[allow(clippy::too_many_arguments)]
 const fn m(name: &'static str, gain: (f64, f64), types: &'static [&'static str], voicings: &'static [(u8, &'static str)],
            users: &'static [(u8, &'static str)], off: Option<(u8, &'static str)>, report_id: u8, pace_ms: u64) -> Model {
-    Model { name, gain, types, voicings, users, off, report_id, pace_ms, q_gain_law: false, preamp_step: 0.1, tested: false }
+    Model { name, gain, types, voicings, users, off, report_id, pace_ms, q_gain_law: false, preamp_step: 0.1,
+            shelf_q_scale: 1.0, preamp_offset: 0.0, tested: false }
 }
 
 const MODELS: &[Model] = &[
     Model { tested: true, ..m("FIIO BTR17", WIDE, SHELVES, MUSIC, USER10, BYPASS, 7, 100) },
-    Model { tested: true, preamp_step: 1.0, ..m("FIIO KA15", NARROW, ALL, MUSIC, LOW_USER3, Some((10, "Close EQ")), 7, 100) },
+    // Contour measured the KA15 on a line input (github.com/Chronosauros/contour, 2026-10-04):
+    // shelves play the stored Q / sqrt(2), and a USER bank plays 12 dB below its stored gain.
+    Model { tested: true, preamp_step: 1.0, shelf_q_scale: std::f64::consts::SQRT_2, preamp_offset: 12.0,
+            ..m("FIIO KA15", NARROW, ALL, MUSIC, LOW_USER3, Some((10, "Close EQ")), 7, 100) },
     // The KA17 moves R&B, Classic and Hip-hop up a slot to make room for USER1 at 4.
     Model { q_gain_law: true, ..m("FIIO KA17", NARROW, ALL,
             &[(0, "Jazz"), (1, "Pop"), (2, "Rock"), (3, "Dance"), (5, "R&B"), (6, "Classic"), (7, "Hip-hop")],
@@ -218,6 +228,8 @@ fn to_profile(m: &Model, product: &str) -> Profile {
         pace_ms: m.pace_ms.max(DELAY_BAND_MS),
         q_gain_law: m.q_gain_law,
         preamp_step: m.preamp_step,
+        shelf_q_scale: m.shelf_q_scale,
+        preamp_offset: m.preamp_offset,
         tested: m.tested,
     }
 }
@@ -369,9 +381,14 @@ pub fn read_band_count<T: TransportFiio + ?Sized>(dev: &T) -> usize {
         .unwrap_or(10)
 }
 
-/// The active bank's global gain, which is what the app calls preamp. It is stored per bank.
-pub fn read_gain<T: TransportFiio + ?Sized>(dev: &T) -> Option<f64> {
+/// The active bank's global gain as stored. It is stored per bank.
+fn read_gain<T: TransportFiio + ?Sized>(dev: &T) -> Option<f64> {
     request(dev, CMD_GLOBAL_GAIN, &[], |p| p.len() >= 2).map(|p| s16(p[0], p[1]) as f64 / 10.0)
+}
+
+/// The active bank's preamp as played: its global gain less any offset the model applies.
+pub fn read_preamp<T: TransportFiio + ?Sized>(dev: &T, p: &Profile) -> Option<f64> {
+    read_gain(dev).map(|g| g - p.preamp_offset)
 }
 
 /// (freq, gain, q, type code) of one band of the active bank.
@@ -454,15 +471,25 @@ pub fn set_preset<T: TransportFiio + ?Sized>(dev: &T, p: &Profile, slot: u8) -> 
 // devicePEQ measured, on a QX13 and a KA17, that a FiiO peaking band realises Q / A, where A is
 // the RBJ amplitude 10^(|gain|/40): Q_mult x A came out at 1.001 +/- 0.015 over 17 cases from
 // +/-6 to +/-24 dB. Models flagged with `q_gain_law` are sent Q x A so they land on the Q asked
-// for, and read back as stored / A. The BTR17 and KA15 are not flagged: nobody has measured
-// them, and an unmeasured correction is worse than none.
+// for, and read back as stored / A. The BTR17 and KA15 are not flagged.
+//
+// Contour measured the KA15 playing a shelf's stored Q divided by sqrt(2), at every frequency,
+// gain and Q tried (LS 80 Hz +4 dB stored 0.70 played 0.50), and peaking bands as stored. So
+// its shelves are sent Q x `shelf_q_scale`. FiiO's own app sends the raw Q, so a KA15 bank it
+// wrote reads back here with a lower shelf Q than it shows: that is the Q actually heard.
 fn rbj_a(gain: f64) -> f64 {
     10f64.powf(gain.abs() / 40.0)
+}
+
+fn is_shelf(typ: &str) -> bool {
+    typ == "LSQ" || typ == "HSQ"
 }
 
 fn q_to_send(p: &Profile, b: &BandIn) -> f64 {
     if p.q_gain_law && b.typ == "PK" {
         (b.q * rbj_a(b.gain)).clamp(p.q_min, p.q_max)
+    } else if is_shelf(&b.typ) && p.shelf_q_scale != 1.0 {
+        (b.q * p.shelf_q_scale).clamp(p.q_min, p.q_max)
     } else {
         b.q
     }
@@ -471,6 +498,8 @@ fn q_to_send(p: &Profile, b: &BandIn) -> f64 {
 fn q_heard(p: &Profile, q: f64, gain: f64, typ: &str) -> f64 {
     if p.q_gain_law && typ == "PK" {
         q / rbj_a(gain)
+    } else if is_shelf(typ) {
+        q / p.shelf_q_scale
     } else {
         q
     }
@@ -529,9 +558,11 @@ pub fn write_bank<T: TransportFiio + ?Sized>(
         send_set(dev, CMD_BAND, &band_payload(i as u8, b));
         sleep(Duration::from_millis(p.pace_ms));
     }
-    // Rounded down to the device's step, so a coarse device gets more headroom, never less.
-    let stepped = (preamp.clamp(p.gain_min, p.gain_max) / p.preamp_step + 1e-9).floor() * p.preamp_step;
-    let gain = (stepped * 10.0).round() as i16;
+    // Rounded down to the device's step, so a coarse device gets more headroom, never less,
+    // then raised by whatever the model plays its gain down by.
+    let heard = preamp.clamp(p.gain_min - p.preamp_offset, p.gain_max - p.preamp_offset);
+    let stepped = (heard / p.preamp_step + 1e-9).floor() * p.preamp_step;
+    let gain = ((stepped + p.preamp_offset) * 10.0).round() as i16;
     send_set(dev, CMD_GLOBAL_GAIN, &gain.to_be_bytes());
     sleep(Duration::from_millis(p.pace_ms));
     send_set(dev, CMD_SAVE, &[slot]);
@@ -572,8 +603,8 @@ pub fn write_bank<T: TransportFiio + ?Sized>(
         return Err(format!(
             "The bands were saved, but the {}'s preamp reads back as {} instead of {:.1} dB.",
             p.name,
-            gain_back.map(|g| format!("{:.1} dB", g)).unwrap_or_else(|| "nothing".into()),
-            gain as f64 / 10.0
+            gain_back.map(|g| format!("{:.1} dB", g - p.preamp_offset)).unwrap_or_else(|| "nothing".into()),
+            sent - p.preamp_offset
         ));
     }
     Ok(WriteResult { acked, active: Some(slot as i32) })
@@ -599,6 +630,25 @@ mod tests {
         assert_eq!(f(1, GET, CMD_PRESET, &[]), vec![0xbb, 0x0b, 0x00, 0x01, 0x16, 0x00, 0x62, 0xee]);
         assert_eq!(f(3, GET, 0x18, &[]), vec![0xbb, 0x0b, 0x00, 0x03, 0x18, 0x00, 0xf1, 0xee]);
         assert_eq!(f(2, GET, CMD_BAND, &[0]), vec![0xbb, 0x0b, 0x00, 0x02, 0x15, 0x01, 0x00, 0x71, 0xee]);
+    }
+
+    // The KA15 plays shelves at stored Q / sqrt(2) and a USER bank 12 dB under its stored gain,
+    // so both are raised on the way out and lowered on the way back. Other models are untouched.
+    #[test]
+    fn ka15_shelf_q_and_preamp_are_corrected() {
+        let ka15 = profile(0, 0, "FIIO KA15").unwrap();
+        let btr17 = profile(0, 0x0088, "").unwrap();
+        let shelf = BandIn { freq: 80.0, gain: 4.0, q: 0.5, typ: "LSQ".into() };
+        let peak = BandIn { freq: 1000.0, gain: 4.0, q: 0.5, typ: "PK".into() };
+        assert!((q_to_send(&ka15, &shelf) - 0.7071).abs() < 1e-3);
+        assert!((q_heard(&ka15, 0.70, 4.0, "HSQ") - 0.495).abs() < 1e-3);
+        assert_eq!(q_to_send(&ka15, &peak), 0.5);
+        assert_eq!(q_heard(&ka15, 0.5, 4.0, "PK"), 0.5);
+        // A shelf Q past what the register holds is capped there, not wrapped.
+        let steep = BandIn { freq: 80.0, gain: 4.0, q: 7.0, typ: "LSQ".into() };
+        assert_eq!(q_to_send(&ka15, &steep), ka15.q_max);
+        assert_eq!(q_to_send(&btr17, &shelf), 0.5);
+        assert_eq!((ka15.preamp_offset, btr17.preamp_offset), (12.0, 0.0));
     }
 
     // Band 5 of USER10 as the device sent it: 5 kHz, -1.5 dB, Q 0.71, high shelf.

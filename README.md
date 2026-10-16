@@ -67,6 +67,8 @@ devicePEQ's "Conexant" handler is this same protocol, so the original FreeDSP an
 | Moondrop FreeDSP Mini | `35D8:98D4` | 8 | ±12 dB | PK / LS / HS | Default, Bass Enhance ×2, Space, Treble Enhance |
 | CrinEar Protocol Micro | `3302:C20F` | 8 | ±10 dB | PK / LS / LPF / HPF | none (custom bank only) |
 
+The CrinEar Protocol Max (`3302:43CC`, 10 bands, ±10 dB, PK / LS / HS) has its own profile but hasn't been tested with this app; [Contour](https://github.com/Chronosauros/contour), an Android EQ app, has driven one on the same limits.
+
 Untested: Walkplay's chip firmware comes in "schemes" with a fixed band count, gain range and filter set, and a product id belongs to one scheme whatever the brand. The app carries Walkplay's catalogue of about 350 product ids, by way of devicePEQ, across 19 vendor ids (Moondrop, CrinEar, Tanchjim, Truthear, ddHiFi, LETSHUOER, NiceHCK, BGVP, Kiwi Ears and others), and only probes devices on the less specific vendor ids if their descriptor declares report `0x4B`.
 
 | Scheme | Bands | Gain | Filter types |
@@ -79,7 +81,7 @@ Untested: Walkplay's chip firmware comes in "schemes" with a fixed band count, g
 | 19 | 6 | ±10 dB | PK / LS / HS |
 | 20 | 10 | ±10 dB | PK |
 
-Also known by name: Moondrop FreeDSP Pro, MOONRIVER 3, Rays, AG Rays, Marigold, DAWN PRO 2, Echo A, DHA15, Deco Audio System, INN Deco75-DH; Tanchjim Space Pro, OLA II DSP, Stargate II; CrinEar Protocol Max; NiceHCK Octave; Truthear KeyX; ddHiFi DSP Cable/IEM - Memory; BGVP MX1; LETSHUOER DT04; generic CS43131/CS43198 dongles.
+Also known by name: Moondrop FreeDSP Pro, MOONRIVER 3, Rays, AG Rays, Marigold, DAWN PRO 2, Echo A, DHA15, Deco Audio System, INN Deco75-DH; Tanchjim Space Pro, OLA II DSP, Stargate II; NiceHCK Octave; Truthear KeyX; ddHiFi DSP Cable/IEM - Memory; BGVP MX1; LETSHUOER DT04; generic CS43131/CS43198 dongles.
 
 **FiiO** (with JadeAudio and SnowSky) — HID report 7 (1 on the KA17, 2 on JadeAudio), framed with a CRC-8. The device designs its own filters from freq / gain / Q, and holds several writable USER banks, which the app switches between like the presets above:
 
@@ -104,7 +106,7 @@ Also known by name: Moondrop FreeDSP Pro, MOONRIVER 3, Rays, AG Rays, Marigold, 
 | JadeAudio JIEZI | | 10 | ±12 dB | PK / LS / HS / LPF / HPF | USER1–3 |
 | JadeAudio JA11 | | as reported | ±12 dB | PK / LS / HS | USER1 |
 
-Bands are as the device reports them (10 on every model checked so far). FiiO devices only share their EQ with EQ switched on in their settings; the app tells you if it's off. The KA15 keeps its preamp in whole dB, so the app rounds headroom down to the next whole dB for it. FiiO's K15, K17 and K19 talk over a USB serial port rather than HID, and aren't supported yet.
+Bands are as the device reports them (10 on every model checked so far). FiiO devices only share their EQ with EQ switched on in their settings; the app tells you if it's off. The KA15 keeps its preamp in whole dB, so the app rounds headroom down to the next whole dB for it, and plays shelves and USER banks differently from what it stores; the app corrects for both (see the changelog). FiiO's K15, K17 and K19 talk over a USB serial port rather than HID, and aren't supported yet.
 
 **KT Micro** — HID report `0x4B`, a register per band parameter, vendor id `31B2`. Untested, 5 bands, ±10 dB, Q up to 5, PK / LS / HS: Moondrop CDSP and Chu II DSP, Tanchjim One DSP, Bunny DSP and Fission, Kiwi Ears Allegro Mini, Allegro Pro, Chorus and S-Link, JCally JM12 (KT02H20, peaking only), and other KT Micro parts on devicePEQ's defaults.
 
@@ -200,6 +202,9 @@ If this saved you from the stock app, you can [buy me a coffee](https://buymeaco
 ### 0.8.3
 - The TRN Black Pearl (`3302:43E8`, which calls itself "TE-C" over USB) shows by name. It was already driven as a 10-band Walkplay scheme 16 cable
 - The FiiO RETRO NANO is confirmed working on real hardware, so it no longer shows as untested
+### Unreleased
+- Fix: FiiO KA15 shelves were too broad and its USER banks 12 dB quiet. Measured on a line input by [Contour](https://github.com/Chronosauros/contour), the KA15 plays a low or high shelf at the stored Q divided by √2, and a USER bank 12 dB below its stored preamp. FiiO's own app writes the raw values too. Shelf Q and preamp are now sent corrected and read back as heard, so a squig.link or AutoEQ profile plays as designed. Banks written before this read back with a lower shelf Q and a preamp 12 dB down, which is what you were actually hearing, and Write all will rewrite them. Rewritten banks come out up to 12 dB louder, at the same level as Close EQ
+- CrinEar Protocol Max (`3302:43CC`) gets a named profile: 10 bands, ±10 dB, peak and both shelves. Untested here
 
 ### 0.8.2
 - Linux: a .tar.gz with the binary, the udev rule, a desktop entry and an install script, for distros that take neither .deb nor .rpm
