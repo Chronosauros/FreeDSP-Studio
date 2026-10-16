@@ -219,7 +219,10 @@ fn profile(vid: u16, pid: u16, product: &str) -> Profile {
             .map(|(k, s)| (*k, s.to_string()))
             .collect::<BTreeMap<u8, String>>()
     };
-    let name = if product.is_empty() {
+    let name = if (vid, pid, product.trim()) == (0x3302, 0x43E8, "TE-C") {
+        // TRN Black Pearl, which only gives the chip's generic name over USB.
+        "TRN Black Pearl".to_string()
+    } else if product.is_empty() {
         format!("{:04x}:{:04x}", vid, pid)
     } else {
         product.to_string()
